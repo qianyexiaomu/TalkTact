@@ -423,12 +423,13 @@ class LlmClient(
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")
             // ⚠️ 长度**必须写死**（且必须在 getOutputStream() 之前调用）。走本地代理时，
-            // 代理那侧是**严格按 Content-Length 读 body** 的（见 ProxyServer），读不到就当空 body 转发。
+            // 代理那侧是**严格按 Content-Length 读 body** 的（见 ProxyServer），
+            // 读不到就直接回 411 拒绝，而不是替发送侧猜一个空 body。
             // 不写死的话，安卓的 HttpURLConnection 在 body 没被它自己缓存住时会改用
-            // `Transfer-Encoding: chunked` —— 代理于是拿不到 Content-Length，转发一个空 body，
-            // 上游只收到「没有 messages」。纯文字请求小、能命中它内部那点缓冲，所以一直是好的；
-            // 而**带上 base64 图片之后请求体涨到几百 KB**，正好越过那条线 ——
-            // 表现就是「文字正常，一发图就看不到图」。
+            // `Transfer-Encoding: chunked` —— 代理于是拿不到 Content-Length，这条请求整个失败。
+            // 纯文字、短请求小到能命中它内部那点缓冲，所以一直是好的；
+            // 请求体一旦涨大（长聊天记录 / 带上 base64 图片）就越过那条线 ——
+            // 表现是「平时都好，偏偏某几次发不出去」。
             // 识图那条上传（wechat/ImageOcr.post）当初就是这么修的，这里漏了那一句。
             conn.setFixedLengthStreamingMode(bytes.size)
             // 「走不走代理」在这里只算一次，凭据和接口头都用它 —— 两者分开判断过一次，出了 401
