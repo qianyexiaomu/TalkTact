@@ -20,6 +20,33 @@ const val PREF_NAME = "cfg"
 const val DEFAULT_BASE = "https://api.openai.com/v1"
 const val DEFAULT_MODEL = "gpt-4o-mini"
 
+/**
+ * 聊天里的图片怎么变成模型能读的东西。
+ *
+ * 三条路的取舍：
+ * - [OCR]：图**不出手机**（ML Kit 在本机认字），但只认得出字 —— 表情包、示意图、
+ *   版式信息全都丢掉；而且缩略图上小字认不出来时只能回落成 `[图片]` 占位。
+ * - [OCR_FALLBACK]：[OCR] 认不出字（或认得太少）时才把图直传。日常仍然不出手机，
+ *   只在「本来就没有信息可用」时才外发 —— 代价是有两张面孔，行为不如另两档可预测。
+ * - [DIRECT]：一律直传，图随消息发给**所配置的接口**。只有原生多模态模型能这么用，
+ *   而且认字与「看懂图」一次完成，表情包也终于有内容了。代价是图片会离开手机。
+ *
+ * 默认 [OCR]：外发是隐私上的一步跨越，不该由升级悄悄替用户决定。
+ */
+enum class ImageMode(val id: String) {
+    OCR("ocr"),
+    OCR_FALLBACK("ocr_fallback"),
+    DIRECT("direct"),
+    ;
+
+    val usesDirect: Boolean get() = this != OCR
+}
+
+/** 字符串 id → 模式。认不出来一律当 [ImageMode.OCR]（旧配置没有这个字段，正好走默认）。 */
+fun imageModeOf(id: String): ImageMode =
+    ImageMode.values().firstOrNull { it.id == id } ?: ImageMode.OCR
+
+
 /** 跨进程读写的 key 集中放一处，免得上游（App）和下游（注入微信的代码）写错字符串。 */
 object Keys {
     const val BASE = "base_url"
@@ -114,6 +141,15 @@ object Keys {
      * 默认开 —— 但它**先要本地代理开着**才有地方认（没代理时注入侧直接跳过、用老占位）。
      */
     const val OCR_ON = "ocr_on"
+    /**
+     * 图片怎么变成模型能读的东西：本地 OCR / OCR 认不出就直传 / 一律直传（见 [ImageMode]）。
+     *
+     * 默认 [ImageMode.OCR]（老行为）。直传那两档会把图片**发给所配置的接口**，
+     * 所以界面上必须明说 —— 这也是它不做默认值的原因。
+     */
+    const val IMAGE_MODE = "image_mode"
+    /** 直传时图片长边的上限（px）。 */
+    const val IMAGE_MAX_SIDE = "image_max_side"
     /** 注入侧回传：最近一次图片识别的结果（认出几个字 / 为什么没认），设置页显示它 */
     const val OCR_INFO = "last_ocr"
     const val OCR_AT = "last_ocr_at"
@@ -241,6 +277,24 @@ data class ConfigData(
      */
     val ocrEnabled: Boolean = true,
     /**
+     * 图片交给模型的方式（见 [ImageMode]）。默认 [ImageMode.OCR] = 老行为、图不出手机。
+     *
+     * 选直传那两档时，图片会作为 `image_url` 内容随消息发给**所配置的接口** ——
+     * 只有原生多模态模型能这么用；纯文本模型会报错或忽略图片。
+     */
+    val imageMode: ImageMode = ImageMode.OCR,
+    /**
+     * 直传时长边的上限（px）。
+     *
+     * 取 1568 是被上游的缩放规则倒推出来的：DeepSeek 的图像理解会把图片缩到
+     * 「总像素约 1300×1300」那一档再送进模型，也就是说**超过这个量级的信息本来就留不住**，
+     * 而小于它就等于白丢细节。1568 长边正好落在那一档的合理区间。
+     *
+     * 下限（256）与上限（2048）都在持久化时夹紧：太小会让图上的小字糊成一团，
+     * 太大则让请求体白白膨胀（base64 之后还要再涨三分之一）。
+     */
+    val imageMaxSide: Int = 1568,
+    /**
      * 查 IP 归属地（「运行状态 → 接口自检」里那两行省份）。默认开。
      *
      * 归属地是**整个模块唯一**一处会把你的 IP 发给第三方的地方（见 llm/NetInfo.kt）——
@@ -320,6 +374,8 @@ data class ConfigData(
                 .filter { it.isNotBlank() }
                 .toSet(),
             ocrEnabled = p.getBoolean(Keys.OCR_ON, true),
+            imageMode = imageModeOf(p.getString(Keys.IMAGE_MODE, "").orEmpty()),
+            imageMaxSide = p.getInt(Keys.IMAGE_MAX_SIDE, 1568).coerceIn(256, 2048),
             geoEnabled = p.getBoolean(Keys.GEO_ON, true),
             geoEndpoint = p.getString(Keys.GEO_ENDPOINT, "").orEmpty(),
         )
@@ -380,6 +436,8 @@ class ConfigStore(context: Context) {
             .putBoolean(Keys.WHITELIST_ON, d.whitelistEnabled)
             .putStringSet(Keys.WHITELIST, d.whitelist.map { Roles.normalizeKey(it) }.filter { it.isNotBlank() }.toHashSet())
             .putBoolean(Keys.OCR_ON, d.ocrEnabled)
+            .putString(Keys.IMAGE_MODE, d.imageMode.id)
+            .putInt(Keys.IMAGE_MAX_SIDE, d.imageMaxSide.coerceIn(256, 2048))
             .putBoolean(Keys.GEO_ON, d.geoEnabled)
             .putString(Keys.GEO_ENDPOINT, d.geoEndpoint.trim())
             .apply()
@@ -482,6 +540,11 @@ class ConfigStore(context: Context) {
      */
     fun saveOcr(enabled: Boolean) {
         sp.edit().putBoolean(Keys.OCR_ON, enabled).apply()
+    }
+
+    /** 只改「图片交给模型的方式」这一个选项，**立刻落盘**（理由同 [saveOcr]）。 */
+    fun saveImageMode(mode: ImageMode) {
+        sp.edit().putString(Keys.IMAGE_MODE, mode.id).apply()
     }
 
     /**

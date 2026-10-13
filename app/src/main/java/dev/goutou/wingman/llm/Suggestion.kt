@@ -213,14 +213,28 @@ object SuggestionParser {
 }
 
 /** 聊天记录 -> 提示词里的正文。 */
-fun List<ChatMsg>.asTranscript(): String = joinToString("\n") { m ->
-    val who = when {
-        m.fromMe -> "我"
-        m.who.isNotBlank() -> "对方(${m.who})"
-        else -> "对方"
-    }
-    "$who: ${m.text}"
-}
+fun List<ChatMsg>.asTranscript(): String = asTranscript(emptyMap<Int, Int>())
+
+/**
+ * 同上，但给「带原图那些消息」标上 `[图N]`。
+ *
+ * 为什么需要标记：[buildApiRequest] 把所有图按顺序放进同一个 user 消息的内容数组里，
+ * 模型看不到「哪张图属于哪句话」—— 一行对话里同时聊到两张图时就分不清了。
+ * 标上序号后，模型能把 `[图2]` 和内容数组里第 2 张图对上。
+ *
+ * [markers] 是 `msgIndex -> 图序号`，由调用方在拼内容数组时同步收集；
+ * **没有图时走的就是老路径**（逐字节与以前一致），这样纯文字会话的**前缀缓存**不受影响。
+ */
+fun List<ChatMsg>.asTranscript(markers: Map<Int, Int>): String =
+    mapIndexed { i, m ->
+        val who = when {
+            m.fromMe -> "我"
+            m.who.isNotBlank() -> "对方(${m.who})"
+            else -> "对方"
+        }
+        val tag = markers[i]?.let { "[图$it] " }.orEmpty()
+        "$who: $tag${m.text}"
+    }.joinToString("\n")
 
 
 /** 一条候选多长算「偏长」：提示词里要求 40~45 字，超过这个数就值得提醒一句（只提示，不拦）。 */

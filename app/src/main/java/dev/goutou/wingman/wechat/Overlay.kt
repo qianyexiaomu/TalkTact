@@ -20,6 +20,7 @@ import android.content.SharedPreferences
 import dev.goutou.wingman.XposedApi
 import dev.goutou.wingman.Heartbeat
 import dev.goutou.wingman.config.ConfigData
+import dev.goutou.wingman.config.ImageMode
 import dev.goutou.wingman.config.chatBlocked
 import dev.goutou.wingman.config.Keys
 import dev.goutou.wingman.config.Roles
@@ -140,6 +141,20 @@ internal class Panel(private val a: Activity) {
      * （换掉了原来那个 force —— 名字说不清它是干嘛的，而且读它的人得自己猜。）
      */
     private var recheck = false
+    /**
+     * 每次进入这一页，「抓大图」允许试几次（见 [grabHdShot]）。
+     *
+     * 为什么要「几次」而不是「一次」：查看器刚 resume 的那一轮，图可能还没完成布局
+     * （宽高还是 0），一次定论就等于永远抓不到 —— 而用户明明已经把图点开了。
+     * 一轮 900ms，三次足够覆盖布局完成。
+     *
+     * 为什么必须有上限：抓图那一支跑在「不是聊天页」的分支里，而那里每 900ms 就走一轮；
+     * 不设上限就会对着同一张上千像素的图反复 `draw()` + 编码，白拖住微信（用户就是卡）。
+     */
+    private val hdTryMax = 3
+
+    /** 这一页还剩几次抓大图的机会（每次进入这一页重置，见 [onResume]）。 */
+    private var hdBudget = hdTryMax
     private var generation = 0
     private var cardTop = -1
     private var lastCallAt = 0L
@@ -219,6 +234,15 @@ internal class Panel(private val a: Activity) {
     /** 已经回执过的那个探测请求（见 [maybeAnswerProbe]）。 */
     private var lastProbeReq = 0L
     private var emptyNotified = false
+    /**
+     * 「这一屏有图、却没进上下文」时那句**直接写进卡片**的原因（不是 [Trace] 里那条）。
+     *
+     * 为什么非要在卡片上再写一份：用户排查时是**截图**给开发者看的，不该逼他先去导诊断包。
+     * 而这条链最要命的失败（有图却没进请求体）恰恰是**全程无声**的 —— 卡片上一切正常、
+     * 模型却像没收到东西，于是所有人都会往「模型不支持看图」上查，方向全错。
+     * 每轮 [tick] 重算一次：图正常进上下文时它就是 null，卡片上不会多一个字。
+     */
+    private var imgDiag: String? = null
     /** 「白名单开着但认不出这个会话的名字」只提示一次，免得每屏都弹。 */
     private var whitelistNameNotified = false
     private var chatName = ""
@@ -291,6 +315,8 @@ internal class Panel(private val a: Activity) {
         lastScreenFingerprint = ""
         inputRef = null
         listRef = null
+        // 每进一次这一页都重新给「抓大图」一次机会：查看器 Activity 会被复用来连续看下一张
+        hdBudget = hdTryMax
         handler.removeCallbacks(ticker)
         handler.postDelayed(ticker, 400L)
     }
@@ -512,6 +538,10 @@ internal class Panel(private val a: Activity) {
                         "（判断依据：$why）长按标题可以再生成一份诊断。",
                 )
             } else {
+                // 用户可能正把某张图点开在看 —— 大图查看器就是「既没有输入框、也没有消息列表」的一页。
+                // 顺手把那张图抓下来：他主动点开 = 他就是要看这张，意图明确。
+                // （为什么不让模块替他点开，见 [HdShot] 的说明 —— 那三条代价都消不掉。）
+                grabHdShot(decor)
                 Trace.note("兜底", "既没有输入框也没有消息列表，Activity=${a.javaClass.simpleName} → 整块藏起来")
                 hideAll("不是聊天页（没有输入框、也没有消息列表）")
             }
@@ -751,8 +781,15 @@ internal class Panel(private val a: Activity) {
             setChip("正在认图…")
             return
         }
-        // 到这儿每张图都已经有确定结果了（认到的文字 / 确实没字 / 失败冷却），解析只是个纯查询
-        val msgs = parser.parse(rows) { img -> ocr.textOf(img) }.takeLast(cfg.ctx)
+        // 到这儿每张图都已经有确定结果了（认到的文字 / 确实没字 / 失败冷却），解析只是个纯查询。
+        // 直传那两档的原图也已经由 ocr.prepare 在后台编好 —— 这里同样只是查表（主线程不能编码图片）。
+        val msgs = parser.parse(
+            rows = rows,
+            imageText = { img -> ocr.textOf(img) },
+            imageDataUrl = { img -> ocr.dataUrlOf(img) },
+            imageId = { img -> ocr.imageIdOf(img) },
+            imageMode = cfg.imageMode,
+        ).takeLast(cfg.ctx)
         // 「这一屏」的稳定键：只跟**看得见的内容**有关（纯函数，单测见 ConversationStateTest）。
         screenKey = screenIdentity(observedName, reader.fingerprint(list), msgs)
         // 只记**条数和方向**，不记正文：轨迹会顺着心跳回传、常驻 App 本地，
@@ -763,8 +800,63 @@ internal class Panel(private val a: Activity) {
                 "解析出 ${msgs.size} 条，最后一条" + if (msgs.last().fromMe) "是我发的" else "是对方发的",
             )
         }
+        // ⚠️「这一屏有图、却没进上下文」是这条链上最容易被误判成「模型不支持看图」的一种
+        // 静默失败，所以专门把它挑出来说，而且要**说清是哪一种**：
+        //
+        //   ① 一行图都没找到 → 断在「找图」（图不在这几条里 / 没被识别成图片控件）；
+        //   ② 找到了却被丢掉 → 断在「方向判定」（图已经取到，卡在「这是谁发的」）。
+        //
+        // 两种成因的修法完全不同，混成一句话反而会把人带偏。第 ② 种真机上就报出来了 ——
+        // 图片行一个字都没有，气泡判不出来就整行丢掉（连已经取到的图一起）。
+        //
+        // 只在「一律发图」这一档报：另两档本来就可能合理地不带图（只认字那档压根不带；
+        // 「认不出就发图」在认出 4 个字以上时按设计不带），照那个判会天天误报。
+        //
+        // 只报计数 + 极短的气泡片段（这条会顺着心跳常驻 App 本地，也会显示在卡片上）。
+        val imgRows = rows.filter { it.image != null }
+        val msgsWithImage = msgs.count { it.imageDataUrl != null }
+        val lastRow = rows.lastOrNull()
+        // 「最后一行像是附件、却没找到图」——这是「找图」那一环断了的直接证据。
+        // 它只在**真的有附件行**时才成立，所以纯文字会话不会每屏刷一句。
+        val lastWantedImage = lastRow != null && lastRow.image == null &&
+            (lastRow.systemHint != null || lastRow.bubble?.text == null ||
+                isImageLikeAttachment(lastRow.bubble.text.orEmpty()))
+        // 「微信压在图上的『轻触重试』」：说明这一行确实有张图，只是**微信没加载出来**
+        // （网络差 / 原图没下完）。这类行我们照样去找图，但那张图很可能连位图都是空的 ——
+        // 说清楚比让用户对着「模型说没收到图」猜要省事得多，解法也完全不同（点开触发下载即可）。
+        val hintRows = rows.filter { it.systemHint != null }
+        imgDiag = when {
+            hintRows.isNotEmpty() -> buildString {
+                append("ℹ 这一屏有 ").append(hintRows.size).append(" 张图**微信没加载出来**")
+                append("（图上压着「").append(hintRows.last().systemHint.orEmpty().trim()).append("」）")
+                append("，模块已去找图但多半取不到内容。")
+                append("想让模型看到它：先在微信里把那张图点开一次（触发下载），退回来再点「重新识别」。")
+            }
+            cfg.imageMode != ImageMode.DIRECT -> null
+            imgRows.isNotEmpty() && msgsWithImage == 0 -> buildString {
+                append("⚠ 读到 ").append(imgRows.size).append(" 行有图，但一条都没进上下文（图已取到）：")
+                append(
+                    imgRows.takeLast(2).joinToString("；") { r ->
+                        val ratio = r.imageRatio
+                        "气泡=" + (r.bubble?.text?.take(6) ?: "无") +
+                            " 头像=" + r.avatars.size +
+                            " 图靠" + when {
+                                ratio == null -> "?"
+                                ratio >= 0.5 -> "右"
+                                else -> "左"
+                            }
+                    },
+                )
+            }
+            imgRows.isEmpty() && lastWantedImage ->
+                "⚠ 这一屏最后一条像是图片，却一行图都没找到（不是模型不支持看图）：" +
+                    "长按标题导出诊断，「找图」那几行会写清它到底看到了什么"
+            else -> null
+        }
+        imgDiag?.let { Trace.note(if (imgRows.isEmpty() || hintRows.isNotEmpty()) "找图" else "图片", it) }
         // 识图状态变了就回传一句给设置页（没变不发，别把广播通道淹了）
-        ocr.takeLine()?.let { Heartbeat.send(a, 0, ocr = it) }
+        listOfNotNull(imgDiag, ocr.takeLine()).takeIf { it.isNotEmpty() }
+            ?.let { Heartbeat.send(a, 0, ocr = it.joinToString(" ｜ ")) }
 
         // 自愈必须排在「一条都没读到」的判断**之前**。
         // 正文控件是「看到才挂钩子」的，而文字早在挂钩之前就设好了 —— 只有让微信重绑一次，
@@ -1197,6 +1289,8 @@ internal class Panel(private val a: Activity) {
             // 图片识别状态 + 每一行「找图」的现场：排查「图上有字却没认出来」就看这两行
             append("识图：" + ocr.debugLine() + "\n")
             rows?.mapNotNull { it.imageProbe }?.take(2)?.forEach { append("行内找图：$it\n") }
+            // 用户点开大图之后模块到底抓到了什么：没有这行就只能靠猜「为什么还是糊的」
+            append("大图：" + HdShot.line() + "\n")
             if (msgs == null) {
                 append("解析：列表为空，没跑\n")
             } else {
@@ -1356,7 +1450,84 @@ internal class Panel(private val a: Activity) {
         }.start()
     }
 
+    /**
+     * 「抓到的这张太小，多半不是一张真图」的下限。
+     *
+     * 挡的是什么：如果查看器里那张图是用 SurfaceView / TextureView 放的，`view.draw()`
+     * 只能画出一整块黑，而纯黑 JPEG 压完极小（几 KB）。不挡的话我们会把一张黑图当成高清版
+     * 发给模型 —— 那种失败不报错，只会让模型对着一片黑一本正经地说话，比"没抓到"难查得多。
+     * 反过来，一张真图哪怕全是渐变，压到 1000px 也远不止 12KB。
+     */
+    private val minHdBytes = 12 * 1024
+
+    /**
+     * 在「不是聊天页」的那一屏里试着抓一张大图（用户点开图片时，微信的查看器就是这样一屏）。
+     *
+     * 只在直传那两档做：不把图交给模型的时候抓它没有任何意义，只是白编一次 JPEG。
+     * 一页最多试 [hdTryMax] 次，之后不再试 —— 每 900ms 重画一张上千像素的图会拖住微信。
+     *
+     * 注意 `tick()` 一开头就调过 [refreshPrefs]，所以这里 `config` 是新鲜的，不用再读一遍配置。
+     */
+    private fun grabHdShot(decor: View) {
+        if (hdBudget <= 0) return
+        val cfg = config ?: return
+        if (!cfg.imageMode.usesDirect) return
+        hdBudget--
+
+        // 这一屏还没有「够大的一张图」：可能是查看器还在布局 —— 把机会留给下一轮。
+        val img = runCatching { reader.bigImageOnScreen(decor) }.getOrNull() ?: return
+
+        // 找到图了：这一页就抓这一次，不管成不成都不再来（重画一张上千像素的图不便宜）。
+        hdBudget = 0
+        val bytes = runCatching { img.jpeg(cfg.imageMaxSide) }.getOrNull() ?: return
+        if (bytes.size < minHdBytes) {
+            Trace.note("大图", "抓到 ${img.width}x${img.height} 但只有 ${bytes.size / 1024}KB，像是一片黑 → 丢弃")
+            return
+        }
+        val fresh = HdShot.hold(bytes, img.width, img.height)
+        Trace.note(
+            "大图",
+            if (fresh) {
+                "已收下用户点开的那张大图：${img.width}x${img.height} · 约 ${bytes.size / 1024}KB" +
+                    "（回到聊天页点「重新识别」就会用它）"
+            } else {
+                "大图和手上那份一模一样，没换"
+            },
+        )
+    }
+
+    /**
+     * 该不该先提示「点开那张图再回来」？
+     *
+     * 只有一种情况值得拦：**这一屏最后一条是对方发的图片**，而手上还没有大图版。
+     * 那时候重跑只会再把同一张缩略图发一遍，结果是原样的一份（白花 token）。
+     * 其余情况（最后一条是文字 / 是我发的 / 根本没图）一律不拦。
+     */
+    private fun hdHintIsWorth(): Boolean {
+        if (config?.imageMode?.usesDirect != true) return false
+        val last = lastMsgs.lastOrNull() ?: return false
+        return !last.fromMe && isImageLikeAttachment(last.text)
+    }
+
     private fun regenerate() {
+        // 「更清晰的图」这条路是**用户参与**的（为什么不替用户点开，见 [HdShot]）：
+        // 气泡里那张是缩略图，只有用户自己点开之后，模块才拿得到查看器里那份大图。
+        // 所以先拦一下：正要发图、手上又没有大图版时，把该怎么做说清楚，别白跑一轮。
+        // ⚠️ 必须排在下面任何状态改动**之前** —— 提前 return 不能留下「清过缓存 / 置了 recheck」的残局。
+        val hd = HdShot.peek()
+        if (hd == null) {
+            if (hdHintIsWorth()) {
+                showMessage(
+                    "这一屏的图是按缩略图发的（长边只有几百像素，模型容易看不清）。\n" +
+                        "想更清楚：**先点开那张图看一眼，退回来再点一次「重新识别」** —— 那次就会用大图版。\n" +
+                        "（不用点「查看原图」，也不用保存到相册，看一眼就够。）",
+                )
+                return
+            }
+        } else {
+            // 有就明说正在用哪一份 —— 不然用户看不出这次和上次有什么不同
+            showMessage("正在用大图版重识别（${hd.width}x${hd.height}，约 ${hd.kb}KB）…")
+        }
         cache.remove(lastFingerprint)
         lastCallAt = 0
         // 「没变就不重读」那道早退要放过这一轮；再读不到消息列表也要照样报出来
@@ -1436,7 +1607,7 @@ internal class Panel(private val a: Activity) {
         val sig = conversationDigest(
             s.intent, s.risk, s.note, s.why, s.best.toString(), s.partial.toString(),
             s.replies.joinToString("\u0000") { it.style + it.text }, msgs.size.toString(),
-        )
+        ) + (imgDiag ?: "")
         if (body == Body.Result && renderedSig == sig) {
             setChip("军师 · 风险${s.risk} · ${s.replies.size}条", chipColor(s.risk))
             return
@@ -1447,6 +1618,10 @@ internal class Panel(private val a: Activity) {
         title.setTextColor(riskColor(s.risk))
         bodyBox.removeAllViews()
         bodyBox.addView(label(lastThree(msgs), 10f, colorSub) { setPadding(0, dp(2), 0, dp(2)) })
+        // 「有图却没进请求体」的原因**直接写在卡片上**：用户排查时是截图给的，
+        // 不该逼他先去导诊断包 —— 而这条链最要命的失败恰恰是全程无声的。
+        // 图正常进上下文时它是 null，卡片上不会多一个字。
+        imgDiag?.let { bodyBox.addView(label(it, 11f, colorWarn) { setPadding(0, dp(2), 0, dp(2)) }) }
         if (s.note.isNotBlank()) {
             bodyBox.addView(label(s.note, 12f, colorSub) { setPadding(0, dp(4), 0, dp(2)) })
         }

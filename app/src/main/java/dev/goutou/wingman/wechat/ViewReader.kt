@@ -43,6 +43,14 @@ internal class ViewReader(private val a: Activity) {
 
     private fun dp(v: Int) = (v * density).toInt()
 
+    /**
+     * 「整屏找图」的门槛：至少有一边要占到屏幕的这个比例（见 [bigImageOnScreen]）。
+     *
+     * 0.55 是从两头夹出来的：查看器里那张图基本铺满宽度（≈1.0 稳过），而相册九宫格的每格
+     * 只有约 1/3 屏宽、聊天页里的大头像也不到一半 —— 中间留出这段距离，就不会误抓。
+     */
+    private val bigShotRatio = 0.55
+
     private val scratch: Bitmap by lazy { Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888) }
     private val canvas = Canvas()
     private val bubbleCache = WeakHashMap<View, BubbleHit>()
@@ -403,6 +411,10 @@ internal class ViewReader(private val a: Activity) {
         val nodes = ArrayList<Pair<TextNode, BubbleHit?>>(6)
         val avatars = ArrayList<AvatarNode>(2)
         val spoken = ArrayList<TextNode>(5)
+        // 微信压在内容上的系统提示（「轻触重试」等）。它**不是聊天内容**，`okText` 会把它
+        // 剔出文字节点 —— 但「出现了这句话」本身是个重要事实：说明这一行有张图、只是没加载出来。
+        // 剔掉就什么都不剩了，所以在这里单独记一笔，带到快照里（见 [RowSnapshot.systemHint]）。
+        var systemHint: String? = null
 
         // includeInvisible = true：微信可能把正文放在 INVISIBLE 的占位控件里，
         // 只认 isShown() 会把正文整条漏掉。这里只跳过 GONE。
@@ -420,6 +432,7 @@ internal class ViewReader(private val a: Activity) {
 
                 v is TextView && v !is EditText -> {
                     val text = v.text?.toString()?.trim().orEmpty()
+                    if (isSystemHint(text)) systemHint = text
                     if (okText(text) && v.width > 0 && v.height > 0) {
                         val kind = when {
                             Chrome.isTime(text) -> Kind.TIMESTAMP
@@ -443,11 +456,14 @@ internal class ViewReader(private val a: Activity) {
                 else -> {
                     // 自己画字的控件（如 MMNeat7extView）：先看钩子抓到的原文
                     val caught = TextCapture.textOf(v)?.toString()?.trim().orEmpty()
+                    if (isSystemHint(caught)) systemHint = caught
                     if (okText(caught)) {
                         nodes.add(TextNode(caught, topOf(v), Kind.OTHER, 0f, v.isShown) to bubbleOf(v, row))
                         return@walk
                     }
                     val t = fallbackText(v)
+                    // 同上：自绘控件上的系统提示也要记下来（不同微信版本可能走这条而不是 TextView）
+                    if (isSystemHint(t)) systemHint = t
                     if (t.isNotEmpty()) {
                         nodes.add(TextNode(t, topOf(v), Kind.OTHER, 0f, v.isShown) to bubbleOf(v, row))
                         return@walk
@@ -500,14 +516,35 @@ internal class ViewReader(private val a: Activity) {
         // 只有「值得找图的一行」才去找图（有正文的行不用管图；[语音] / [表情] 这类也跳过 ——
         // 那些行里没有能认的文字，第 21 版起不再白认一次），顺手记下现场。
         // 找不到就照旧 null —— 没有这一步时是什么样，现在还是什么样。
-        val scan = if (bubble?.text == null || isImageLikeAttachment(bubble.text.orEmpty())) {
+        //
+        // ⚠️ 第三条：**出现了微信压在图上的系统提示**（[systemHint]，最典型是「轻触重试」）
+        // 说明「这一行有张图，只是没加载出来」，必须去找图。
+        //
+        // 以前这里只看 `bubble.text`：那句提示被当成气泡文字 → 这一行被判成**普通文字行**
+        // → `scanImage` 压根不跑 —— **图就在屏幕上，模块却从来没取过它**，
+        // 用户看到的现象和「对方根本没发图」完全一样（详见 [isSystemHint] 的 KDoc）。
+        //
+        // 正常文字行的行为一字不差：有正文就不找图。
+        val scan = if (systemHint != null || bubble?.text == null || isImageLikeAttachment(bubble.text.orEmpty())) {
             scanImage(row, bubble?.text)
         } else {
             null
         }
         val image = scan?.hit?.let { hit -> RowImage(hit.w, hit.h) { side -> jpegOf(hit, side) } }
+        // 图落在屏幕哪半边。图片行常常一个字都没有（既没有气泡容器，头像也可能没认出来），
+        // 这时「这是谁发的」就只剩这一条线索 —— 交给 ChatParser 当**最后**一票用，
+        // 免得整行（连同已经取到的图）被丢掉。
+        val imageRatio = scan?.hit?.let { ratioOfImage(it) }
 
-        return RowSnapshot(bubble, texts, avatars, image, scan?.probe)
+        return RowSnapshot(
+            bubble = bubble,
+            texts = texts,
+            avatars = avatars,
+            image = image,
+            imageProbe = scan?.probe,
+            imageRatio = imageRatio,
+            systemHint = systemHint,
+        )
     }
 
     /** 一次「找图」的结果：命中的控件 + 一句话现场（诊断用）。 */
@@ -524,6 +561,18 @@ internal class ViewReader(private val a: Activity) {
         /** true = 只能靠 view.draw() 画出来（不是 ImageView，或者它的 drawable 不是位图） */
         val viaDraw: Boolean,
         val kind: String,
+        /**
+         * 已经拿在手上的那张位图（来自控件的 drawable 或 background）。
+         *
+         * 为什么单独存一份：[jpegOf] 原来只认 `ImageView.drawable`。而**尺寸量不出来的那一类**
+         * 控件（另一种微信版本把消息图塞在 0 尺寸的壳里）也常常把位图挂在 background 上，
+         * 那时既不是 ImageView、又画不出来（0 尺寸画布画什么都是空）——
+         * 补一份引用最省事，也最不容易出错。
+         *
+         * 正常那一档（尺寸量得出来的）刻意**不填**：那条路上 `jpegOf` 的老分支本来就够用，
+         * 不动它，8.0.78 上的行为就一字不差。
+         */
+        val bitmap: Bitmap? = null,
     )
 
     /**
@@ -539,7 +588,10 @@ internal class ViewReader(private val a: Activity) {
      * 取像素分两档：① ImageView + BitmapDrawable → 直接拿原始位图（最清楚也最省）；
      * ② 其他控件 → `view.draw()` 画进位图（自绘的只能这么取，且必须在主线程）。
      *
-     * 挑哪个（从好到差）：[大 + 叶子] → [大 + 最深容器] → [兜底：任意叶子，排除头像 / 方形小图，短边 ≥ 48dp]。
+     * 挑哪个（从好到差）：[大 + 叶子] → [大 + 最深容器] → [兜底：任意叶子，排除头像 / 方形小图，短边 ≥ 48dp]；
+     * 这三档**一个都没选中**时，才启用第四档：**控件量不出尺寸、但手里握着足够大的位图**
+     * （见 [collectImageHits] 的 `spare`）。第四档排在最后是有意的 —— 它是在「别的微信版本把消息图
+     * 塞在 0 尺寸的壳里」这种情况下的唯一出路，但它在正常版本上不该参与竞争。
      *
      * 兜底那档是给「图不在大控件里」的真机情况留的（第 20 版实测确实有），但**收紧**过：
      * 头像、表情包那种方形小图一律不算候选 —— 否则一屏表情包会一个接一个地白认。
@@ -555,39 +607,9 @@ internal class ViewReader(private val a: Activity) {
         val tiny = dp(32)
         val hits = ArrayList<ImgHit>(8)
         val top = ArrayList<ImgHit>(4)
-        var visited = 0
-
-        fun visit(v: View, depth: Int) {
-            visited++
-            val w = if (v.width > 0) v.width else v.measuredWidth
-            val h = if (v.height > 0) v.height else v.measuredHeight
-            val isText = v is TextView || v is EditText
-            if (!isText && w > 0 && h > 0 && v.visibility != View.GONE && minOf(w, h) >= tiny) {
-                val iv = v as? ImageView
-                val bmp = (iv?.drawable as? BitmapDrawable)?.bitmap?.takeIf { !it.isRecycled }
-                val hit = ImgHit(
-                    view = v,
-                    w = w,
-                    h = h,
-                    depth = depth,
-                    big = minOf(w, h) > minSide,
-                    viaDraw = bmp == null,
-                    kind = v.javaClass.simpleName + when {
-                        bmp != null -> "（位图 ${bmp.width}x${bmp.height}）"
-                        iv != null -> "（drawable=${iv.drawable?.javaClass?.simpleName ?: "null"}）"
-                        else -> "（自绘）"
-                    },
-                )
-                hits.add(hit)
-                top.add(hit)
-                if (top.size > 3) {
-                    top.sortByDescending { it.w * it.h }
-                    top.removeAt(3)
-                }
-            }
-            if (v is ViewGroup) for (i in 0 until v.childCount) visit(v.getChildAt(i), depth + 1)
-        }
-        visit(row, 0)
+        // 第二遍的落点：见 [collectImageHits] 的 `spare` 说明。只在主判据一个都没选中时才用它。
+        val spare = ArrayList<ImgHit>(4)
+        val visited = collectImageHits(row, tiny, minSide, hits, top, spare)
 
         // 头像：正方形 + 贴在两侧（和 readRow 里认头像的规则同一套）
         fun isAvatarLike(h: ImgHit): Boolean {
@@ -599,7 +621,7 @@ internal class ViewReader(private val a: Activity) {
         // 方形小图 = 头像 / 表情包那一类（和认头像同一套容差）。拿它们去 OCR 纯属白认。
         fun looksSquareSmall(h: ImgHit): Boolean = abs(h.w - h.h) <= dp(4) && minOf(h.w, h.h) <= minSide
 
-        val specs = hits.map { h ->
+        fun specsOf(list: List<ImgHit>): List<ImageCandidateSpec> = list.map { h ->
             ImageCandidateSpec(
                 width = h.w,
                 height = h.h,
@@ -610,15 +632,29 @@ internal class ViewReader(private val a: Activity) {
                 isBig = h.big,
             )
         }
-        val selected = selectImageCandidate(specs, hits.indexOfFirst { it.view === row })
-        val hit = hits.getOrNull(selected)
+
+        fun pick(list: List<ImgHit>, rowIndex: Int): ImgHit? =
+            list.getOrNull(selectImageCandidate(specsOf(list), rowIndex))
+
+        val normal = pick(hits, hits.indexOfFirst { it.view === row })
+        // 兜底：主判据（尺寸）一个候选都没收到时，才看「量不出尺寸、却握着真位图」的那几个。
+        // 只在主判据**全军覆没**时启用 —— 正常路径上多塞一个候选，就可能把本来挑对的那张挤掉，
+        // 那属于「为了修版本 A 把版本 B 弄坏」，是这里最不能犯的错。
+        val rescued = if (normal == null) pick(spare, -1) else null
+        val hit = normal ?: rescued
 
         val probe = buildString {
             append("行 ").append(rowW).append('x').append(rowH).append(" 视图 ").append(visited)
             bubbleText?.takeIf { it.isNotBlank() }?.let { append(" 正文=「").append(it.take(10)).append("」") }
             append("｜")
+            if (hit != null && rescued != null) {
+                append("兜底命中：").append(hit.kind).append("（按位图尺寸取）｜")
+            }
             if (top.isEmpty()) {
                 append("行内没有非文字控件（短边 >").append(tiny).append("px）")
+                if (spare.isNotEmpty()) {
+                    append("；另有 ").append(spare.size).append(" 个控件量不出尺寸、手里有位图")
+                }
             } else {
                 top.sortedByDescending { it.w * it.h }.forEachIndexed { index, h ->
                     if (index > 0) append("｜")
@@ -628,15 +664,135 @@ internal class ViewReader(private val a: Activity) {
                 // 有候选却一个都没被选中：说清楚是被收紧规则挡掉的，省得又以为是「取不到图」
                 if (hit == null) append("｜⚠ 这些都没被采纳（太小 / 方形小图），这一行不认图")
             }
-        }.take(240)
+        }.take(300)
 
         return ImgScan(hit, probe)
     }
 
+    /**
+     * 遍历 [root]，把「非文字、尺寸够大」的控件都收进 [hits]（判据与 [scanImage] 完全同一套，
+     * 所以抽出来共用 —— 两份判据一旦分叉，「行内找图」和「整屏找图」就会对同一张图给出
+     * 不同的答案，那是比找不到图更难查的毛病）。
+     *
+     * @param tiny 短边下限（低于它的一律不算候选）
+     * @param minSide 「够大」的门槛，写进 [ImgHit.big]
+     * @param top 传进来就顺手维护「面积最大的三个」（诊断用）；不需要时传 null
+     * @param spare 见下面那条说明；不需要这一档时传 null
+     * @return 访问过的控件数（诊断里报「视图 N」，用来解释遍历预算够不够）
+     */
+    private fun collectImageHits(
+        root: View,
+        tiny: Int,
+        minSide: Int,
+        hits: MutableList<ImgHit>,
+        top: MutableList<ImgHit>?,
+        /**
+         * 第二遍的落点：**控件量不出尺寸（宽高都是 0）、但手里确实握着一张真位图**的那种。
+         *
+         * 主判据是「尺寸」（短边 ≥ [tiny]），而它有个前提：控件得先量得出来。别的微信版本
+         * 会把消息图塞进一个 0 尺寸的壳里（只有 drawable / background 上挂着位图），
+         * 这一行于是**一个候选都收不到** —— 表现出来就是「图明明在屏幕上，模块说没找到图」，
+         * 而且卡片上不会有任何提示（两条警告都要求「先找到图」或「先判出气泡」）。
+         *
+         * 传 null = 不做这件事。[bigImageOnScreen] 就不传：那一屏要求「明确就是那张大图」，
+         * 不能拿一个量不出尺寸的东西去顶。
+         */
+        spare: MutableList<ImgHit>? = null,
+    ): Int {
+        var visited = 0
+        // 兜底只认「足够大」的位图：头像（≤84dp 方形）与表情包的位图都在这个门槛以下，
+        // 否则它们会被当成消息图（一屏表情包会一个接一个被取出来发出去）。
+        val minBitmap = dp(96)
+
+        fun visit(v: View, depth: Int) {
+            visited++
+            val w = if (v.width > 0) v.width else v.measuredWidth
+            val h = if (v.height > 0) v.height else v.measuredHeight
+            val isText = v is TextView || v is EditText
+            val iv = v as? ImageView
+            val bmp = (iv?.drawable as? BitmapDrawable)?.bitmap?.takeIf { !it.isRecycled }
+            if (!isText && v.visibility != View.GONE) {
+                if (w > 0 && h > 0 && minOf(w, h) >= tiny) {
+                    val hit = ImgHit(
+                        view = v,
+                        w = w,
+                        h = h,
+                        depth = depth,
+                        big = minOf(w, h) > minSide,
+                        viaDraw = bmp == null,
+                        kind = v.javaClass.simpleName + when {
+                            bmp != null -> "（位图 ${bmp.width}x${bmp.height}）"
+                            iv != null -> "（drawable=${iv.drawable?.javaClass?.simpleName ?: "null"}）"
+                            else -> "（自绘）"
+                        },
+                    )
+                    hits.add(hit)
+                    if (top != null) {
+                        top.add(hit)
+                        if (top.size > 3) {
+                            top.sortByDescending { it.w * it.h }
+                            top.removeAt(3)
+                        }
+                    }
+                } else if (spare != null) {
+                    // 位图不一定挂在 ImageView 上：这种 0 尺寸的壳常常把图放在 background。
+                    val held = bmp ?: (v.background as? BitmapDrawable)?.bitmap?.takeIf { !it.isRecycled }
+                    if (held != null && maxOf(held.width, held.height) >= minBitmap) {
+                        spare.add(
+                            ImgHit(
+                                view = v,
+                                w = held.width,
+                                h = held.height,
+                                depth = depth,
+                                big = minOf(held.width, held.height) > minSide,
+                                viaDraw = false,
+                                kind = v.javaClass.simpleName +
+                                    "（位图 ${held.width}x${held.height}·控件量不出尺寸）",
+                                bitmap = held,
+                            ),
+                        )
+                    }
+                }
+            }
+            if (v is ViewGroup) for (i in 0 until v.childCount) visit(v.getChildAt(i), depth + 1)
+        }
+        visit(root, 0)
+        return visited
+    }
+
+    /**
+     * 整屏找「一张大图」—— 只用于**用户把图点开**的那一屏（微信的大图查看器）。
+     *
+     * 与 [scanImage] 的区别只有两处：搜的是整屏（调用方传来的根控件）而不是一行；判据**严得多** ——
+     * 至少有一边要占到屏幕的 [bigShotRatio]。收紧是必须的：相册九宫格、朋友圈缩略图、
+     * 聊天页里的大头像都是「非文字的大控件」，但它们抓下来的尺寸**并不比气泡里那张好**，
+     * 白白在主线程上编一次上千像素的 JPEG（那是会卡微信的）。
+     *
+     * 这一屏没有「明显是一张大图」的东西就返回 null —— 调用方按「没抓到」处理。
+     */
+    fun bigImageOnScreen(root: View): RowImage? {
+        val hits = ArrayList<ImgHit>(64)
+        collectImageHits(root, dp(32), dp(84), hits, null)
+        if (hits.isEmpty()) return null
+
+        // 只在**叶子**控件里挑，而且刻意不走 [selectImageCandidate] 的「最深容器」那条回落档：
+        // 那条是为了「一行里图被包在容器里」而设的，在整屏这一档上它的后果是**把整个屏幕
+        // 连查看器的工具栏一起画下来** —— 交上去是一张带界面的截图，比缩略图还不如。
+        // 查看器里那张图本身就是个叶子控件，所以这一档只认叶子是安全的。
+        val hit = hits.filter { it.big && it.view !is ViewGroup }.maxByOrNull { it.w * it.h }
+            ?: return null
+
+        val bigEnough = hit.w >= width * bigShotRatio || hit.h >= height * bigShotRatio
+        if (!bigEnough) return null
+        return RowImage(hit.w, hit.h) { side -> jpegOf(hit, side) }
+    }
+
     /** 把命中的控件变成一份 JPEG（长边缩到 [maxSide]）。null = 这一张取不到。 */
     private fun jpegOf(hit: ImgHit, maxSide: Int): ByteArray? {
-        // ① 原始位图：ImageView 且 drawable 就是位图
-        val raw = if (hit.viaDraw) {
+        // ① 原始位图。**先认 [ImgHit.bitmap]** —— 兜底那一档（控件量不出尺寸）早就把位图握在手里了，
+        //    那种壳既不是 ImageView、也没有尺寸，下面两条老路一条都走不通。
+        //    正常那一档 bitmap 是 null，于是行为与以前一字不差。
+        val raw = hit.bitmap ?: if (hit.viaDraw) {
             null
         } else {
             (hit.view as? ImageView)?.drawable?.let { (it as? BitmapDrawable)?.bitmap }
@@ -777,14 +933,23 @@ internal class ViewReader(private val a: Activity) {
     /**
      * 文本合法性 —— 所有「可能是聊天内容」的字符串都必须过这里。
      *
-     * 除了长度和噪音词，还专门挡「看起来像 Java 类名 / 控件自述」的串。真实事故：
-     * `View.getAccessibilityClassName()` 返回 "android.widget.TextView"、
-     * `View.toString()` 返回 "android.widget.LinearLayout{...}"，
-     * 反射兜底把它们当成「最长的文字」选走了，于是发给模型的聊天记录变成一串类名，
-     * 模型只能顺着编 Android 梗（ConstraintLayout / RelativeLayout 就是这么来的）。
+     * 除了长度和噪音词，还专门挡两类：
+     *
+     * 1. 「看起来像 Java 类名 / 控件自述」的串。真实事故：
+     *    `View.getAccessibilityClassName()` 返回 "android.widget.TextView"、
+     *    `View.toString()` 返回 "android.widget.LinearLayout{...}"，
+     *    反射兜底把它们当成「最长的文字」选走了，于是发给模型的聊天记录变成一串类名，
+     *    模型只能顺着编 Android 梗（ConstraintLayout / RelativeLayout 就是这么来的）。
+     * 2. 微信自己压在内容上的系统提示（见 [isSystemHint]），最典型的是图片没加载出来时
+     *    压在图上的「轻触重试」。它不只污染上下文，还会让这一行被当成**文字行**，
+     *    于是 `scanImage` 根本不跑 —— 图在屏幕上却从来没被取过（见 [isSystemHint] 的 KDoc）。
+     *
+     * ⚠️ 这里**只挡精确匹配的那几句**：用户在聊天里真的打「轻触重试」是有效对话，不能吃。
+     * 挡在总闸而不是解析层，是因为五条读文字的路径（TextView / 钩子 / 无障碍 / 反射 / 类名）
+     * 全都要过它 —— 在下游任何一处挡都会漏。
      */
     private fun okText(s: String): Boolean =
-        s.length in 2..400 && s !in UI_WORDS && !looksLikeViewDump(s)
+        s.length in 2..400 && s !in UI_WORDS && !isSystemHint(s) && !looksLikeViewDump(s)
 
     /**
      * 认不出气泡容器时的兜底：
@@ -817,7 +982,7 @@ internal class ViewReader(private val a: Activity) {
      * 结构快照：真机上「为什么读不到 / 为什么全是图片」靠它定位，不用猜。
      * 会写进 LSPosed 日志，同时广播回 App 首页，可以直接复制发出来。
      */
-    fun diagnose(root: View, list: ViewGroup?, input: View?, rowCount: Int = 3): String {
+    fun diagnose(root: View, list: ViewGroup?, input: View?, rowCount: Int = 8): String {
         val sb = StringBuilder()
         sb.append("DIAG 屏=").append(width).append('x').append(height)
             .append(" dp=").append(density).append(" 夜间=").append(night).append(NL)
@@ -825,8 +990,22 @@ internal class ViewReader(private val a: Activity) {
         sb.append("消息列表: ").append(list?.let { describe(it) } ?: "未找到").append(NL)
         sb.append("候选列表: ").append(lastCandidates).append(NL)
         if (list != null) {
-            for (r in 0 until minOf(rowCount, list.childCount)) {
-                if (sb.length > 5600) break
+            // ⚠️ 从**最后一行往上** dump，而不是从第 0 行开始。
+            //
+            // 为什么：聊天列表里**新消息在最后**。原来固定打印前 3 行（rowCount=3）加上
+            // 「超 5600 字就 break」，于是「刚收到一张图」时 —— 那张图在第 4 行或更后 ——
+            // 诊断里**永远看不到它**，只剩几行历史。用户为了排查反复导出诊断包，
+            // 拿到的却是被截掉关键内容的那一份（真踩过：消息列表 4 行只打印了 3 行）。
+            //
+            // 列表太长时不从头截，而是**保住最新的几行**：历史消息对「这一屏为什么读不出来」
+            // 没什么用，出问题的几乎总是刚收到的那一条。
+            val total = list.childCount
+            val from = maxOf(0, total - rowCount)
+            // 有截断就把「前面还有多少行没打印」写出来，免得又被误读成「列表里只有这些」
+            if (from > 0) sb.append("（共 ").append(total).append(" 行，只打印最后 ")
+                .append(total - from).append(" 行）").append(NL)
+            for (r in from until total) {
+                if (sb.length > 11000) break
                 val row = list.getChildAt(r)
                 sb.append("行").append(r).append(' ').append(describe(row)).append(NL)
                 // 先给出「读取器对这几行的判定」，一眼看出卡在哪
@@ -834,13 +1013,16 @@ internal class ViewReader(private val a: Activity) {
                 sb.append("  判定: 气泡=")
                     .append(snap?.bubble?.text?.take(20) ?: "null")
                     .append(" 头像=").append(snap?.avatars?.size ?: 0)
+                    .append(" 有图=").append(if (snap?.image != null) "是" else "否")
                     .append(" 文字=")
                     .append(snap?.texts?.take(4)?.joinToString("|") { it.kind.name + ":" + it.text.take(12) } ?: "-")
                     .append(NL)
+                // 「找图」现场并入这一行的判定里：读到图了/为什么没读到，一眼可见
+                snap?.imageProbe?.let { sb.append("  找图: ").append(it).append(NL) }
                 dumpRow(sb, row, 40)
             }
         }
-        return sb.toString().take(6200)
+        return sb.toString().take(12000)
     }
 
     /**
@@ -1017,6 +1199,24 @@ internal class ViewReader(private val a: Activity) {
         v.getLocationOnScreen(loc)
         val w = if (v.width > 0) v.width else v.measuredWidth
         return loc[0] + w / 2
+    }
+
+    /**
+     * 图控件落在屏幕的哪半边（0 = 最左、1 = 最右）。取不到就返回 null —— **宁可不投这一票**。
+     *
+     * 为什么要单独一个函数：兜底命中那一档（控件量不出尺寸、只有位图）**自己是没有位置的**，
+     * 拿它算出来的比例是「父容器原点」，会把左图判成右图。所以顺着父链往上找第一个
+     * 量得出尺寸的祖先 —— 外面那层气泡容器位置是准的，它才是这张图真正画在哪儿的依据。
+     */
+    private fun ratioOfImage(hit: ImgHit): Double? {
+        var v: View? = hit.view
+        var guard = 0
+        while (v != null && guard++ < 6) {
+            val w = if (v.width > 0) v.width else v.measuredWidth
+            if (w > 0) return centerX(v).toDouble() / width.coerceAtLeast(1)
+            v = v.parent as? View
+        }
+        return null
     }
 
     private companion object {

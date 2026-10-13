@@ -53,7 +53,9 @@ internal data class ApiRequest(val url: String, val body: String, val authHeader
  *
  * 通用规矩：
  * - [system] 为空时**不塞空字段**（自检那条最小请求就是 system 为空的）；
- * - `max_tokens <= 0` 表示「不传」（交给服务端默认），只有 Anthropic 例外 —— 它必填。
+ * - `max_tokens <= 0` 表示「不传」（交给服务端默认），只有 Anthropic 例外 —— 它必填；
+ * - [imageDataUrls] 非空时，user 的 `content` 从字符串换成 OpenAI 那套**内容数组**
+ *   （`[{type:text},{type:image_url}...]`），图片按序附在文字**之后**。
  */
 internal fun buildApiRequest(
     shape: ApiShape,
@@ -66,6 +68,7 @@ internal fun buildApiRequest(
     temperature: Double,
     maxTokens: Int,
     jsonMode: Boolean,
+    imageDataUrls: List<String> = emptyList<String>(),
 ): ApiRequest {
     val fields = LinkedHashMap<String, JsonValue>()
     fields["model"] = str(model)
@@ -79,11 +82,13 @@ internal fun buildApiRequest(
                 fields["messages"] = arr(
                     listOf(
                         obj("role" to str("system"), "content" to str(system)),
-                        obj("role" to str("user"), "content" to str(user)),
+                        obj("role" to str("user"), "content" to userContent(user, imageDataUrls)),
                     ),
                 )
             } else {
-                fields["messages"] = arr(listOf(obj("role" to str("user"), "content" to str(user))))
+                fields["messages"] = arr(
+                    listOf(obj("role" to str("user"), "content" to userContent(user, imageDataUrls))),
+                )
             }
         }
         ApiShape.RESPONSES -> {
@@ -106,6 +111,28 @@ internal fun buildApiRequest(
         linkedMapOf("Authorization" to "Bearer $apiKey")
     }
     return ApiRequest(apiUrl(shape, base, customPath), Json.encode(JsonValue.Obj(fields)), auth)
+}
+
+/**
+ * user 消息的 `content`。
+ *
+ * 没有图时**原样返回字符串** —— 纯文字会话的请求体逐字节和以前一致，
+ * 服务端的**前缀缓存**（OpenAI / DeepSeek 按前缀命中，价差一个数量级）不受影响。
+ * 有图时才换成内容数组，且文字在前、图片在后。
+ */
+private fun userContent(user: String, imageDataUrls: List<String>): JsonValue {
+    if (imageDataUrls.isEmpty()) return str(user)
+    val parts = ArrayList<JsonValue>(imageDataUrls.size + 1)
+    parts += obj("type" to str("text"), "text" to str(user))
+    for (url in imageDataUrls) {
+        parts += obj(
+            "type" to str("image_url"),
+            // detail 固定 high：这些图是聊天截图，上面的小字恰恰是重点，
+            // low 会把分辨率压下去，等于白传。代价是每张图的 token 更多（调用方按张数设了上限）。
+            "image_url" to obj("url" to str(url), "detail" to str("high")),
+        )
+    }
+    return arr(parts)
 }
 
 /** 从返回里取「正文 / token 数 / 模型名」。取不到正文返回 null（调用方负责报错）。 */

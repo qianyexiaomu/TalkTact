@@ -19,13 +19,29 @@ internal fun conversationDigest(vararg fields: String): String {
  *
  * **刻意不含角色档案 / 设置 / 说话风格** —— 那些每轮都在长（[recordToRoles] 一直在往档案里补），
  * 混进来就会得到一个每轮都变的键。
+ *
+ * ⚠️ 加上 [ChatMsg.imageId] 是修一个**真 bug**，不是顺手：
+ * 以前这里只哈希 方向/昵称/文本/是否占位，而两张不同的图正文都是 `[图片/表情/语音]` 这个占位
+ * → 文本完全相同 → 键相同 → **命中缓存，把上一张图的答案还回去**
+ * （用户实测：连着发两张图，第二张的回复还是第一张的内容）。
+ *
+ * 用的是**短身份**而不是 [ChatMsg.imageDataUrl]：data URL 有几十 KB，而这里是每 tick 算一遍的，
+ * 塞进去等于每轮哈希一遍图片。imageId 是压缩后字节的 sha256 前 16 位，
+ * 在 ImageOcr.prepare 里本来就算过（当缓存键用），取出来零成本。
  */
 internal fun screenIdentity(name: String, screen: String, msgs: List<ChatMsg>): String =
     conversationDigest(
         name,
         screen,
-        *msgs.map { conversationDigest(it.fromMe.toString(), it.who, it.text, it.attachment.toString()) }
-            .toTypedArray(),
+        *msgs.map {
+            conversationDigest(
+                it.fromMe.toString(),
+                it.who,
+                it.text,
+                it.attachment.toString(),
+                it.imageId.orEmpty(),
+            )
+        }.toTypedArray(),
     )
 
 /**

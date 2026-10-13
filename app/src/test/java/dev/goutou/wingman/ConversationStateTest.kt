@@ -37,7 +37,37 @@ class ConversationStateTest {
             listOf(ChatMsg(false, "好的", attachment = true)),
             listOf(ChatMsg(false, "前文")) + messages,
             listOf(ChatMsg(false, "[图片] 新文字")),
+            // 图片短身份也必须参与
+            listOf(ChatMsg(false, "好的", imageId = "abc123")),
         )) assertNotEquals(original, screenIdentity("群", "屏", changed))
+    }
+
+    /**
+     * **回归测试**：两张不同的图不能共用同一个键。
+     *
+     * 用户实测的现象 —— 连着发两张图，第二张的回复还是第一张的内容。
+     * 根因是 [screenIdentity] 以前只哈希 方向/昵称/文本/是否占位，
+     * 而两张图的正文都是 `[图片/表情/语音]` 这个占位 → 文本完全相同 → 键相同 →
+     * 命中结果缓存，把上一张图的答案直接还回去。
+     *
+     * 这里刻意把 text/attachment/imageId 造得完全一样，只让 imageId 不同 ——
+     * 那正是「两张图」在旧键下的样子：除了图本身，别的都分不出来。
+     */
+    @Test fun `two different images with identical placeholder text must not share a key`() {
+        val first = listOf(ChatMsg(false, "[图片/表情/语音]", attachment = true, imageId = "aaaa1111"))
+        val second = listOf(ChatMsg(false, "[图片/表情/语音]", attachment = true, imageId = "bbbb2222"))
+        // 文本那一层确实完全一样（证明这个测试测的就是图片身份这一处）
+        assertEquals(first[0].text, second[0].text)
+        assertEquals(first[0].attachment, second[0].attachment)
+        assertNotEquals(
+            resultKey(screenIdentity("张三", "屏", first), "cfg"),
+            resultKey(screenIdentity("张三", "屏", second), "cfg"),
+        )
+        // 而同一个 imageId 必须稳定（否则缓存永远 miss、白烧 token）
+        assertEquals(
+            screenIdentity("张三", "屏", first),
+            screenIdentity("张三", "屏", listOf(ChatMsg(false, "[图片/表情/语音]", attachment = true, imageId = "aaaa1111"))),
+        )
     }
 
     @Test fun `length prefixed keys distinguish delimiter text and scopes`() {

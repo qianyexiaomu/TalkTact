@@ -97,6 +97,7 @@ import dev.goutou.wingman.proxy.ProxyService
 import dev.goutou.wingman.config.GLASS_QUALITY_AUTO
 import dev.goutou.wingman.config.GLASS_QUALITY_HIGH
 import dev.goutou.wingman.config.GLASS_QUALITY_LOW
+import dev.goutou.wingman.config.ImageMode
 import dev.goutou.wingman.config.Role
 import dev.goutou.wingman.config.Roles
 import dev.goutou.wingman.llm.BUILT_IN_SKILLS
@@ -1338,7 +1339,12 @@ fun SettingsScreen(
                 color = palette.sub,
             )
             Text(
-                "识别：图片文字 ${if (d.ocrEnabled) "开" else "关"}　本地代理 ${if (d.proxyEnabled) "开" else "关"}　" +
+                "识别：图片文字 ${if (d.ocrEnabled) "开" else "关"}　" +
+                    "图文直传 " + when (d.imageMode) {
+                        ImageMode.OCR -> "关"
+                        ImageMode.OCR_FALLBACK -> "认不出时才发"
+                        ImageMode.DIRECT -> "开"
+                    } + "　本地代理 ${if (d.proxyEnabled) "开" else "关"}　" +
                     "归属地查询 ${if (d.geoEnabled) "开" else "关"}",
                 fontSize = 13.sp,
                 color = palette.sub,
@@ -1519,6 +1525,19 @@ fun AdvancedScreen(
         store.saveOcr(on)
         val fresh = store.load()
         d = d.copy(ocrEnabled = fresh.ocrEnabled)
+        persisted = fresh
+        onSaved()
+    }
+
+    /**
+     * 「图片怎么交给模型」也**立刻落盘** —— 理由同 [saveOcr]。
+     *
+     * 这一项还牵涉隐私（选了直传，图片就会发给接口），更不该等那个管整页的保存按钮。
+     */
+    fun saveImageMode(mode: ImageMode) {
+        store.saveImageMode(mode)
+        val fresh = store.load()
+        d = d.copy(imageMode = fresh.imageMode)
         persisted = fresh
         onSaved()
     }
@@ -2184,7 +2203,9 @@ fun AdvancedScreen(
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "⚠ 还差一步：认字这件事在 App 进程里做，所以得先把上面那张卡的「本地代理」打开 —— " +
-                        "否则微信那边连不上本机端口，会直接跳过（图片仍是占位）。",
+                        "否则微信那边连不上本机端口，会直接跳过（图片仍是占位）。\n" +
+                        "用多模态模型的话根本不需要认字：把下面那张卡的档位改成发图、再把这个开关关掉，" +
+                        "就完全不依赖代理了。",
                     fontSize = 13.sp,
                     color = palette.warn,
                 )
@@ -2194,6 +2215,74 @@ fun AdvancedScreen(
             ocrNote?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(it, fontSize = 13.sp, color = palette.ok)
+            }
+        }
+
+        GlassCard(d.glassAlpha) {
+            Text("图片怎么交给模型", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text(
+                "上面那档是「在手机上把图认成字」—— 认得出字，但认不出表情、手势和版式。" +
+                    "如果用的是**原生多模态**模型（能直接收图片），可以让图直接随消息发过去，" +
+                    "模型既读字也看得懂图，表情包终于有内容了。",
+                fontSize = 13.sp,
+                color = palette.sub,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GlassPill("只认字", d.imageMode == ImageMode.OCR, Modifier.weight(1f)) {
+                    saveImageMode(ImageMode.OCR)
+                }
+                GlassPill("认不出就发图", d.imageMode == ImageMode.OCR_FALLBACK, Modifier.weight(1f)) {
+                    saveImageMode(ImageMode.OCR_FALLBACK)
+                }
+                GlassPill("一律发图", d.imageMode == ImageMode.DIRECT, Modifier.weight(1f)) {
+                    saveImageMode(ImageMode.DIRECT)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when (d.imageMode) {
+                    ImageMode.OCR ->
+                        "图不会离开手机。表情包、示意图这类没有文字的图仍然是 [图片/表情/语音] 占位。"
+                    ImageMode.OCR_FALLBACK ->
+                        "先在本机认字；认出来的字太少（少于 4 个字）或认不出时，才把这张图发给接口 —— " +
+                            "日常仍然不出手机，只有本来就没有信息可用时才外发。"
+                    ImageMode.DIRECT ->
+                        "聊天里的图会随消息一起发给所配置的接口。"
+                },
+                fontSize = 13.sp,
+                color = palette.sub,
+            )
+            if (d.imageMode.usesDirect) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "⚠ 图片会发送给「${d.baseUrl.ifBlank { "（接口地址还没填）" }}」。" +
+                        "只有原生多模态模型能这么用 —— 纯文本模型会报错或干脆忽略图片。",
+                    fontSize = 13.sp,
+                    color = palette.warn,
+                )
+                if (d.proxyEnabled) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "本地代理开着没问题：图片由微信进程走回环送到 App，再由 App 带上 Key 转发，" +
+                            "和文字走的是同一条路。",
+                        fontSize = 13.sp,
+                        color = palette.sub,
+                    )
+                } else {
+                    // 直传不经过代理：取图、压缩、拼请求体全在微信进程里完成，代理在这条路上不做任何事。
+                    // ⚠️ 这里以前写的是「✕ 现在发不出去：必须先打开本地代理，否则图根本不会被取」——
+                    // 那是错的，而且说得像跨进程的硬约束：它把「认字」的必要条件（ML Kit 在 App 进程）
+                    // 错安到了「直传」头上。直传从来就不需要代理。
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "代理关着也能用：直传全程在微信进程里完成（取图 → 压缩 → 随请求直接发出），" +
+                            "不经过代理。\n" +
+                            "唯一的代价是 API Key —— 代理开着时注入侧拿不到它，关掉代理它就会随配置下发到微信进程。",
+                        fontSize = 13.sp,
+                        color = palette.sub,
+                    )
+                }
             }
         }
 
@@ -3785,6 +3874,14 @@ private fun buildDiagZip(context: Context, store: ConfigStore, cfg: ConfigData):
                     ""
                 }
                 append("图片文字识别：${if (cfg.ocrEnabled) "开" else "关"}　本地代理：${if (cfg.proxyEnabled) "开" else "关"}\n")
+                // 图片去向上报一句：出了问题（图没内容 / 模型报错）时，先要知道用户选的是哪一档。
+                append(
+                    "图片交给模型：" + when (cfg.imageMode) {
+                        ImageMode.OCR -> "只在本机认字（不外发）"
+                        ImageMode.OCR_FALLBACK -> "先认字，认不出才直传（长边 ${cfg.imageMaxSide}px）"
+                        ImageMode.DIRECT -> "一律直传（长边 ${cfg.imageMaxSide}px）"
+                    } + "\n",
+                )
                 append("最近一次识图：${ocrLine.ifBlank { "（还没有记录）" }}$ocrWhen\n")
                 append("API Key：已省略（不导出）\n")
             },

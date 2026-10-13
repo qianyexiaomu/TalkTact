@@ -104,6 +104,21 @@ class LlmClient(
         if (msgs.isEmpty()) throw LlmException("没读到聊天内容", null)
 
         val start = System.currentTimeMillis()
+        // 直传那两档会在消息上带 data URL。这里先**从后往前**挑图（最近的图与「刚发来的那条」最相关），
+        // 并卡住总字节数 —— 一张 1024px 的截图 base64 之后约 100~300KB，
+        // 不设上限的话长会话会把请求体顶到几 MB，微信进程编码卡顿、服务端也可能直接拒。
+        val picked = pickImages(msgs)
+        val markers = picked.first
+        val images = picked.second
+        // 「这一轮到底有没有图被带上」——排查「图片给不到模型」时这是第一问，所以直接写进
+        // 「最近一次调用」。只报张数与大小，**不含图片内容**（那是几十 KB 的 base64）。
+        // 报「0 张」基本就说明断在取图那一环：对照高级设置里「最近一次」那行的识图状态即可定位。
+        val imageLine = if (images.isEmpty()) {
+            "直传图片：0 张（这一轮没有图，或者取图失败 —— 看高级设置里「最近一次」那一行）"
+        } else {
+            "直传图片：${images.size} 张 · 合计约 ${images.sumOf { it.length } / 1024} KB" +
+                "（长边上限 ${cfg.imageMaxSide}px）"
+        }
         // trace 要能原样看到「发出去的是什么」，所以用传进来的那份，而不是回头读 cfg
         // 顺序刻意是「跨请求不变的东西在前、每次都变的东西在后」：
         // system（skill）→ 角色档案 + 说话风格 → 聊天记录。
@@ -111,7 +126,7 @@ class LlmClient(
         // （OpenAI / DeepSeek 是按前缀自动命中的，命中价差一个数量级）。
         val userText = buildString {
             if (!roleContext.isNullOrBlank()) append(roleContext).append("\n\n")
-            append("聊天记录（时间顺序，最后一条是对方刚发的）：\n").append(msgs.asTranscript())
+            append("聊天记录（时间顺序，最后一条是对方刚发的）：\n").append(msgs.asTranscript(markers))
             append("\n\n只输出系统要求的那个 JSON 对象，不要任何解释文字。")
         }
         // 请求体与鉴权头交给「接口形态」去组装（llm/ApiShape.kt）：
@@ -129,6 +144,7 @@ class LlmClient(
             temperature = cfg.temperature,
             maxTokens = cfg.maxTokens,
             jsonMode = cfg.jsonMode,
+            imageDataUrls = images,
         )
 
         // 最多两次：第一次正常发；如果**模型没按契约回**（不是合法 JSON / 被截断），
@@ -147,12 +163,12 @@ class LlmClient(
                         "确认模型名是否可用、以及这个服务商是否真的支持所选的接口形态",
                     )
                 val content = reply.content
-                trace(system, userText, content)
+                trace(system, userText, content, imageLine)
                 tokensTotal += reply.tokens
                 val parsed = try {
                     SuggestionParser.parse(content, requireReplies)
                 } catch (e: LlmException) {
-                    trace(system, userText, "（解析失败，${if (attempt == 0) "补正后重试一次" else "不再重试"}）${e.message}\n---\n$content")
+                    trace(system, userText, "（解析失败，${if (attempt == 0) "补正后重试一次" else "不再重试"}）${e.message}\n---\n$content", imageLine)
                     if (attempt == 0 && e.retryable) {
                         attempt = 1
                         continue
@@ -166,7 +182,7 @@ class LlmClient(
                     model = reply.model.ifBlank { cfg.model },
                 )
             } catch (t: Throwable) {
-                trace(system, userText, "（请求失败）${t.message}")
+                trace(system, userText, "（请求失败）${t.message}", imageLine)
                 throw t
             }
         }
@@ -218,11 +234,17 @@ class LlmClient(
     }
 
 
-    /** 把这次实际发出去的 system 提示词 / user 消息 / 模型原始返回交给调用方存档。 */
-    private fun trace(systemText: String, userText: String, response: String) {
+    /**
+     * 把这次实际发出去的 system 提示词 / user 消息 / 模型原始返回交给调用方存档。
+     *
+     * [imageLine] 是这一轮带图的概况（张数 / 大小），由调用方算好传进来 ——
+     * 它只在 [analyzeWith] 那条路有意义，别的调用点留空即可。
+     */
+    private fun trace(systemText: String, userText: String, response: String, imageLine: String = "") {
         val cb = onTrace ?: return
         val body = buildString {
             append("system 长度 = ${systemText.length} 字\n")
+            if (imageLine.isNotBlank()) append(imageLine).append('\n')
             append("-------- system 开头 300 字 --------\n")
             append(systemText.take(300))
             if (systemText.length > 300) append("\n…（后面省略 ${systemText.length - 300} 字）")
@@ -293,6 +315,38 @@ class LlmClient(
         )
     }
 
+    /**
+     * 从消息里挑要直传的图：**从后往前**取，卡张数也卡总字节。
+     *
+     * 从后往前的原因：最近一张图通常就是「这条要回的消息」，很久以前的图对这次判断帮助小得多 ——
+     * 超限时先丢旧的。
+     *
+     * @return `msgIndex -> 图序号`（给 [asTranscript] 标 `[图N]`）与按序排好的 data URL 列表。
+     *   图序号按**对话顺序**编号（1、2、3…），所以从后往前挑出来的要再翻回去 ——
+     *   否则模型看到的 `[图1]` 会指向最后那张图。
+     */
+    private fun pickImages(msgs: List<ChatMsg>): Pair<Map<Int, Int>, List<String>> {
+        val chosen = ArrayList<Pair<Int, String>>(MAX_IMAGES) // (msgIndex, dataUrl)，挑的顺序是从后往前
+        var bytes = 0L
+        for (i in msgs.indices.reversed()) {
+            if (chosen.size >= MAX_IMAGES) break
+            val url = msgs[i].imageDataUrl ?: continue
+            // 单张就超上限的话直接跳过它，而不是整轮放弃 —— 别的图可能还有用
+            if (bytes + url.length > MAX_IMAGE_TOTAL_CHARS) continue
+            bytes += url.length
+            chosen += i to url
+        }
+        if (chosen.isEmpty()) return emptyMap<Int, Int>() to emptyList<String>()
+        chosen.reverse()
+        val markers = LinkedHashMap<Int, Int>(chosen.size)
+        val urls = ArrayList<String>(chosen.size)
+        chosen.forEachIndexed { n, (msgIndex, url) ->
+            markers[msgIndex] = n + 1
+            urls += url
+        }
+        return markers to urls
+    }
+
     private fun parseResponse(body: String) = run {
         val root = Json.parse(body)
             ?: throw LlmException("接口返回的不是 JSON（HTTP 200）", "可能是中转站返回了 HTML 错误页")
@@ -335,6 +389,8 @@ class LlmClient(
         direct: Boolean = false,
         authHeaders: Map<String, String> = emptyMap(),
     ): String {
+        // 先把 body 编成字节：下面要按它的长度走**固定长度上传**（见 setFixedLengthStreamingMode 的说明）
+        val bytes = payload.toByteArray(Charsets.UTF_8)
         val conn = try {
             URL(url).openConnection() as HttpURLConnection
         } catch (t: Throwable) {
@@ -347,6 +403,15 @@ class LlmClient(
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conn.setRequestProperty("Accept", "application/json")
+            // ⚠️ 长度**必须写死**（且必须在 getOutputStream() 之前调用）。走本地代理时，
+            // 代理那侧是**严格按 Content-Length 读 body** 的（见 ProxyServer），读不到就当空 body 转发。
+            // 不写死的话，安卓的 HttpURLConnection 在 body 没被它自己缓存住时会改用
+            // `Transfer-Encoding: chunked` —— 代理于是拿不到 Content-Length，转发一个空 body，
+            // 上游只收到「没有 messages」。纯文字请求小、能命中它内部那点缓冲，所以一直是好的；
+            // 而**带上 base64 图片之后请求体涨到几百 KB**，正好越过那条线 ——
+            // 表现就是「文字正常，一发图就看不到图」。
+            // 识图那条上传（wechat/ImageOcr.post）当初就是这么修的，这里漏了那一句。
+            conn.setFixedLengthStreamingMode(bytes.size)
             // 「走不走代理」在这里只算一次，凭据和接口头都用它 —— 两者分开判断过一次，出了 401
             val proxyRoute = !direct && viaProxy()
             if (proxyRoute) {
@@ -361,7 +426,7 @@ class LlmClient(
                 authHeaders.forEach { (k, v) -> conn.setRequestProperty(k, v) }
                 if (authHeaders.isEmpty()) conn.setRequestProperty("Authorization", "Bearer ${cfg.apiKey}")
             }
-            conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+            conn.outputStream.use { it.write(bytes) }
 
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
@@ -409,6 +474,23 @@ private const val JSON_NUDGE = """【补正】你上一次的输出不是合法 
 
 这次请严格只输出那一个 JSON 对象：不要解释、不要 markdown 代码块、不要在 JSON 前后加任何文字，
 也不要把字段值写太长以免再次被截断。"""
+
+/**
+ * 一次请求最多直传几张图。
+ *
+ * 取 1：大多数时候「要回的那条」只有一张图，而每张图（detail=high）都要几百 token。
+ * 真有一屏多图时会挑**最后一张**（见 [LlmClient.pickImages]）—— 那通常正是要回应的那张。
+ */
+private const val MAX_IMAGES = 1
+
+/**
+ * 直传图片的总字节上限（按 data URL 的字符数算）。
+ *
+ * 一张 1024px 的截图 base64 之后约 100~300KB。这里留 2MB 余量：
+ * 既够放一张大图，又不会让请求体涨到几 MB —— 那样微信进程编码会卡主线程，
+ * 服务端也常直接拒收。
+ */
+private const val MAX_IMAGE_TOTAL_CHARS = 2_000_000
 
 /**
  * 把「接口地址」拼成 chat/completions 的完整 URL。

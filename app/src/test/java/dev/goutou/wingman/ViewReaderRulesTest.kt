@@ -108,4 +108,23 @@ class ViewReaderRulesTest {
             assertFalse(text, looksLikeViewDump(text))
         }
     }
+
+    /**
+     * 微信压在图上的系统提示（「轻触重试」等）要认出来，但**只认精确匹配**。
+     *
+     * 真实事故：对方发来一张图但没加载出来，微信在图上压一行「轻触重试」——
+     * 它是个真 TextView，被读成「对方:轻触重试」混进上下文；而更要命的是它让这一行
+     * 被当成**文字行**，于是找图那一步压根不跑（图在屏幕上却从没被取过）。
+     *
+     * 反向的护栏同样重要：用户完全可能在聊天里真的打出「轻触重试」四个字，
+     * 那句话是有效上下文，所以判据不能是「包含」。
+     */
+    @Test fun `system hints match exactly and never by substring`() {
+        for (text in listOf("轻触重试", " 点击重试 ", "重新加载", "已过期")) {
+            assertTrue(text, isSystemHint(text))
+        }
+        for (text in listOf("", "轻触", "重试", "轻触重试也不管用", "他说轻触重试", "帮我看看这个")) {
+            assertFalse(text, isSystemHint(text))
+        }
+    }
 }

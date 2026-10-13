@@ -1,5 +1,6 @@
 package dev.goutou.wingman
 
+import dev.goutou.wingman.config.ImageMode
 import dev.goutou.wingman.wechat.ATTACHMENT_TEXT
 import dev.goutou.wingman.wechat.AvatarNode
 import dev.goutou.wingman.wechat.Bubble
@@ -230,5 +231,27 @@ class ChatParserTest {
     fun `普通文字与空串都不去找图`() {
         assertFalse(isImageLikeAttachment("在吗"))
         assertFalse(isImageLikeAttachment(""))
+    }
+
+    /**
+     * 「图没加载出来」的行（微信压着「轻触重试」）必须仍然进上下文，而且**按图片行走**。
+     *
+     * 提示本身在读屏那层就被剔掉了，所以这一行在快照里是「没有气泡文字」的形态 ——
+     * 这正是最容易把它整行丢掉的那种形态。这条钉住「有图就不许丢」那条规则对
+     * 系统提示行同样成立（`systemHint` 只是多带一个「为什么没加载出来」的说明）。
+     */
+    @Test
+    fun `图没加载出来的行照样进上下文`() {
+        val rows = listOf(
+            RowSnapshot(
+                bubble = null,
+                image = img(),
+                imageRatio = 0.2,
+                systemHint = "轻触重试",
+            ),
+        )
+        val msgs = parser.parse(rows, imageMode = ImageMode.DIRECT) { null }
+        assertEquals("有图就不该整行丢掉", 1, msgs.size)
+        assertFalse("靠左的图 = 对方发的", msgs[0].fromMe)
     }
 }
