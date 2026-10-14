@@ -11,7 +11,9 @@ import dev.goutou.wingman.llm.asDouble
 import dev.goutou.wingman.llm.asInt
 import dev.goutou.wingman.llm.asObj
 import dev.goutou.wingman.llm.asStr
+import dev.goutou.wingman.llm.decodeChatStyles
 import dev.goutou.wingman.llm.decodeCustomStyles
+import dev.goutou.wingman.llm.encodeChatStyles
 import dev.goutou.wingman.llm.encodeCustomStyles
 import dev.goutou.wingman.llm.bool
 import dev.goutou.wingman.llm.num
@@ -58,6 +60,11 @@ object Backup {
         // 漏掉这一项的症状很隐蔽：换机导入之后自定义风格全没了，用户会以为是自己没点到保存。
         if (cfg.replyCustomStyles.isNotEmpty()) {
             c["replyCustomStyles"] = str(encodeCustomStyles(cfg.replyCustomStyles))
+        }
+        // 「按联系人单独设置」：和偏好里**同一套编码**（一行一个会话）。
+        // 漏掉它的症状同样隐蔽：换机导入之后「对谁说人话、对谁说鬼话」那套分人设置全没了。
+        if (cfg.chatStyles.isNotEmpty()) {
+            c["chatStyles"] = str(encodeChatStyles(cfg.chatStyles))
         }
 
         val fields = LinkedHashMap<String, JsonValue>()
@@ -110,6 +117,15 @@ object Backup {
         // 老备份没有这个键 → asStr 返回 null → 不动（保持当前配置里已有的自定义风格）
         c["replyCustomStyles"].asStr()?.let {
             cfg = cfg.copy(replyCustomStyles = decodeCustomStyles(it))
+        }
+        // 老备份没有这个键 → asStr 返回 null → 不动（保持当前配置里已有的分人设置）
+        c["chatStyles"].asStr()?.let {
+            cfg = cfg.copy(
+                chatStyles = decodeChatStyles(it)
+                    // 注意 filterKeys 的 lambda 参数**是键本身**，不是 Map.Entry（别再写成解构）
+                    .mapKeys { (k, _) -> Roles.normalizeKey(k) }
+                    .filterKeys { it.isNotBlank() },
+            )
         }
 
         val imported = root["roles"]?.let { Roles.decode(Json.encode(it)) }.orEmpty()

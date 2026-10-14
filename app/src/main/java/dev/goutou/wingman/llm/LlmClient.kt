@@ -2,7 +2,7 @@ package dev.goutou.wingman.llm
 
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.IMAGE_MODE_OCR
-import dev.goutou.wingman.config.replyPlan
+import dev.goutou.wingman.config.replyPlanFor
 import dev.goutou.wingman.proxy.ProxyProtocol
 import dev.goutou.wingman.wechat.ChatMsg
 import dev.goutou.wingman.wechat.IMAGE_PREFIX
@@ -54,6 +54,13 @@ class LlmClient(
      * 默认 null = 不管（App 里「试一试」那条路和单测都走这个默认）。
      */
     private val onProxyUnreachable: (() -> Unit)? = null,
+    /**
+     * 当前会话名 —— 「按联系人单独设置」靠它生效。
+     *
+     * 不传 = 用全局那套：App 里的「试一试」「接口自检」和单测都走这个默认
+     *（那几处根本没有「正在跟谁聊」这回事）。
+     */
+    private val chatName: String? = null,
 ) {
 
     /** 当前接口形态。差异只有三处：URL 路径 / 请求体 / 鉴权头（见 llm/ApiShape.kt）。 */
@@ -68,7 +75,8 @@ class LlmClient(
      * 用配置上的 `replyPlan` 扩展而不是自己 `ReplyPlan.of(...)`：那条路径把
      * **用户自定义的风格**也一起认了（见 config/Config.kt）。
      */
-    private val plan: ReplyPlan get() = cfg.replyPlan
+    // 「按联系人单独设置」就在这里生效：chatName 为空 = 全局那套（与以前逐字一致）。
+    private val plan: ReplyPlan get() = cfg.replyPlanFor(chatName)
 
     /**
      * 出站地址。

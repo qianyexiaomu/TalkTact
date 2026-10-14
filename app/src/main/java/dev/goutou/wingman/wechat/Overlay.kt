@@ -26,6 +26,7 @@ import dev.goutou.wingman.config.chatBlocked
 import dev.goutou.wingman.config.Keys
 import dev.goutou.wingman.config.Roles
 import dev.goutou.wingman.config.replyPlan
+import dev.goutou.wingman.config.replyPlanFor
 import dev.goutou.wingman.config.RoleMsg
 import dev.goutou.wingman.llm.LlmClient
 import dev.goutou.wingman.llm.LlmException
@@ -1342,19 +1343,22 @@ internal class Panel(private val a: Activity) {
                             cfg,
                             onTrace = { traces.add("【写回复一路】\n$it") },
                             onProxyUnreachable = { wakeAppForProxy() },
+                            chatName = chatName,
                         ),
                         riskClient = LlmClient(
                             cfg.riskEndpoint(),
                             onTrace = { traces.add("【风险评估一路】\n$it") },
                             second = true,
                             onProxyUnreachable = { wakeAppForProxy() },
+                            chatName = chatName,
                         ),
                         skillPrompt = cfg.prompt,
                         msgs = msgs,
                         roleContext = roleContext,
                         waitMs = gradedWaitMs(cfg.probeReplyMs, cfg.probeRiskMs),
                         // 条数/风格跟着配置走，直通与分级两条路的候选条数才一致
-                        plan = cfg.replyPlan,
+                        // 分级那一路也要用**这个会话**的规格，否则两位数的条数会对不上
+                        plan = cfg.replyPlanFor(chatName),
                     )
                     suggestion = out.suggestion
                     tokens = out.totalTokens
@@ -1370,6 +1374,7 @@ internal class Panel(private val a: Activity) {
                         cfg,
                         onTrace = { traces.add(it) },
                         onProxyUnreachable = { wakeAppForProxy() },
+                        chatName = chatName,
                     ).analyze(msgs, roleContext)
                     suggestion = result.suggestion
                     tokens = result.totalTokens

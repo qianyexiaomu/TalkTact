@@ -93,6 +93,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -1060,6 +1061,11 @@ fun GlassPill(text: String, selected: Boolean, modifier: Modifier = Modifier, on
             fontSize = 13.sp,
             color = if (selected) Color.White else palette.text,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            // **强制单行**：胶囊是等宽（weight(1f)）排在一排里的，文字一旦折成两行，
+            // 那颗就比同排其它的高一截 —— 一排里出现两种高度，看起来像「没对齐」。
+            // 装不下就用省略号（各排的宽度差别很大：4 列那排文字位只有 40dp 上下）。
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

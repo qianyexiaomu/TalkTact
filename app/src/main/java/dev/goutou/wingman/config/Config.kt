@@ -6,6 +6,8 @@ import dev.goutou.wingman.llm.DEFAULT_PROMPT
 import dev.goutou.wingman.llm.DEFAULT_REPLY_COUNT
 import dev.goutou.wingman.llm.MAX_REPLIES
 import dev.goutou.wingman.llm.MIN_REPLIES
+import dev.goutou.wingman.llm.decodeChatStyles
+import dev.goutou.wingman.llm.encodeChatStyles
 import dev.goutou.wingman.llm.REPLY_STYLES
 import dev.goutou.wingman.llm.ReplyPlan
 import dev.goutou.wingman.llm.ReplyStyle
@@ -132,6 +134,14 @@ object Keys {
      * 不用 `putStringSet` —— Set 会把顺序丢掉，而顺序就是界面上显示的顺序。
      */
     const val REPLY_CUSTOM_STYLES = "reply_custom_styles"
+    /**
+     * 「按联系人单独设置」：一行一个会话（`会话名\u0002id1\u0002id2…`，见 `llm/encodeChatStyles`）。
+     * id 部分**可以为空**（`会话名\u0002`）= 「已添加、先跟进全局」，不是坏数据。
+     *
+     * 键是 [Roles.normalizeKey] 归一化过的会话名 —— 和白名单、角色档案用的是同一套键，
+     * 三处才对得上（模块只能从聊天页标题读到名字，没有别的稳定标识可用）。
+     */
+    const val CHAT_STYLES = "chat_styles"
     /** 「接口自检」量到的两路延迟（ms）；设置页的公告栏与「两路对齐等待」都用它 */
     const val PROBE_REPLY_MS = "probe_reply_ms"
     const val PROBE_RISK_MS = "probe_risk_ms"
@@ -293,6 +303,18 @@ data class ConfigData(
      */
     val replyCustomStyles: List<dev.goutou.wingman.llm.ReplyStyle> = emptyList(),
     /**
+     * 「按联系人单独设置」：会话名（[Roles.normalizeKey] 归一化过）→ 该会话专用的风格 id 列表。
+     *
+     * **不在表里的会话走全局那套**（[replyStyleIds]）—— 所以这张表可以一直空着，
+     * 空表和以前的行为逐字一致。
+     *
+     * 表里**值为空列表**的会话也是「走全局」：那是设置页「＋ 添加联系人」建出来的记录
+     *（已添加、但还没单独调过），和「不在表里」在 [replyPlanFor] 里走的是同一个分支。
+     *
+     * 值仍然是**列表**不是 Set：顺序决定「第 1 条走哪个风格」，和全局那套同一个理由。
+     */
+    val chatStyles: Map<String, List<String>> = emptyMap(),
+    /**
      * 「接口自检」量到的两路延迟（毫秒；0 = 没测过）。
      * 和 [selfStyleEnabled] 一样是**只读**字段：由 [ConfigStore.saveProbeMs] 单独写，save() 不碰。
      */
@@ -406,6 +428,10 @@ data class ConfigData(
             replyStyleIds = readReplyStyleIds(p),
             // 编码文本 → 自定义风格列表。坏行会被 decode 自己跳过，这里不用再兜。
             replyCustomStyles = decodeCustomStyles(p.getString(Keys.REPLY_CUSTOM_STYLES, null).orEmpty()),
+            // 会话名在这里归一化：存进去、读出来都过一遍，免得「张三」和「张三 」被当成两个会话
+            chatStyles = decodeChatStyles(p.getString(Keys.CHAT_STYLES, null).orEmpty())
+                .mapKeys { Roles.normalizeKey(it.key) }
+                .filterKeys { it.isNotBlank() },
             probeReplyMs = p.getLong(Keys.PROBE_REPLY_MS, 0L).coerceAtLeast(0L),
             probeRiskMs = p.getLong(Keys.PROBE_RISK_MS, 0L).coerceAtLeast(0L),
             proxyEnabled = p.getBoolean(Keys.PROXY_ON, false),
@@ -450,14 +476,28 @@ private fun readReplyStyleIds(p: SharedPreferences): List<String> {
  * 每处都自己写一遍 `ReplyPlan.of(replyCount, replyStyleIds, replyCustomStyles)`
  * 的话，**漏掉最后那个参数**就是「自定义风格在某个路径上不生效」—— 而这种漏法是静默的。
  */
-val ConfigData.replyPlan: ReplyPlan
-    get() = replyPlanOf(
-        // 条数**从勾选里派生**（勾几种就写几条）；一种都没勾才回落到存着的 [replyCount]。
-        // 这里是全模块唯一算条数的地方 —— 别的调用点都走这个扩展，别再各算各的。
-        plannedReplyCount(replyStyleIds, replyCount),
-        replyStyleIds,
+val ConfigData.replyPlan: ReplyPlan get() = replyPlanFor(null)
+
+/**
+ * **[chat] 这个会话**该用的回复规格 —— 「按联系人单独设置」的解析口。
+ *
+ * 那位单独设过就用 TA 那一套，否则和 [replyPlan] 逐字一样。
+ * 传 null / 空名 = 全局那套：App 里的「试一试」「接口自检」都走这条（那两处没有「正在跟谁聊」）。
+ *
+ * `takeIf { it.isNotEmpty() }` 不是多余的：**空列表不算覆盖** ——
+ * 否则一个会话被写空之后它就永远回不到全局了（界面上也没有「恢复成全局」的入口）。
+ */
+fun ConfigData.replyPlanFor(chat: String?): ReplyPlan {
+    val key = chat?.let { Roles.normalizeKey(it) }.orEmpty()
+    val ids = chatStyles[key]?.takeIf { it.isNotEmpty() } ?: replyStyleIds
+    return replyPlanOf(
+        // 条数照旧**从勾选里派生**；全局那套的算法一个字没动
+        //（[replyPlan] 现在就是本函数 chat = null 的那个情形）。
+        plannedReplyCount(ids, replyCount),
+        ids,
         replyCustomStyles,
     )
+}
 
 /**
  * 配置仓库。
@@ -513,6 +553,12 @@ class ConfigStore(context: Context) {
             .putStringSet(Keys.REPLY_STYLES_SET, d.replyStyleIds.toHashSet())
             // 自定义风格连同顺序一起存（编码成一行一条），见 Keys.REPLY_CUSTOM_STYLES 的说明
             .putString(Keys.REPLY_CUSTOM_STYLES, encodeCustomStyles(d.replyCustomStyles))
+            .putString(
+                Keys.CHAT_STYLES,
+                encodeChatStyles(
+                    d.chatStyles.mapKeys { Roles.normalizeKey(it.key) }.filterKeys { it.isNotBlank() },
+                ),
+            )
             .putBoolean(Keys.PROXY_ON, d.proxyEnabled)
             .putInt(Keys.PROXY_PORT, d.proxyPort.coerceIn(1024, 65535))
             .putBoolean(Keys.WHITELIST_ON, d.whitelistEnabled)
@@ -720,6 +766,28 @@ class ConfigStore(context: Context) {
             .putString(Keys.REPLY_CUSTOM_STYLES, encodeCustomStyles(keep))
             .putString(Keys.PROMPT, rebuilt)
             .apply()
+    }
+
+    /** 读「按联系人单独设置」（会话名归一化过）。 */
+    fun chatStyles(): Map<String, List<String>> =
+        decodeChatStyles(sp.getString(Keys.CHAT_STYLES, null).orEmpty())
+            .mapKeys { Roles.normalizeKey(it.key) }
+            .filterKeys { it.isNotBlank() }
+
+    /**
+     * 写「按联系人单独设置」，**立刻落盘**（纯选择型的设置，点完就该生效，不该等页底那个「保存」）。
+     *
+     * 刻意**不重拼提示词快照** —— 这一项不进快照：规格是每次请求时按会话现拼的
+     *（见 `llm/LlmClient` 里的 `applyReplyPlan(systemText, plan)`），
+     * 所以「提示词」页显示的那份仍是全局那份，不会因为多给某个人设了风格就变样。
+     */
+    fun setChatStyles(map: Map<String, List<String>>) {
+        val norm = map
+            .mapKeys { Roles.normalizeKey(it.key) }
+            .filterKeys { it.isNotBlank() }
+            // 注意**不滤掉空列表**：空 = 「已添加、先跟进全局」，是一条合法状态（见 llm/encodeChatStyles）
+            .mapValues { (_, ids) -> ids.map { it.trim() }.filter { it.isNotBlank() }.distinct() }
+        sp.edit().putString(Keys.CHAT_STYLES, encodeChatStyles(norm)).apply()
     }
 
     /**

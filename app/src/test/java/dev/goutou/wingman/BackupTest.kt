@@ -129,4 +129,19 @@ class BackupTest {
         val r = Backup.import(legacy, cur, emptyList())!!
         assertEquals(cur.replyCustomStyles, r.config.replyCustomStyles)
     }
+
+    @Test
+    fun `按联系人单独设置跟着备份一起走`() {
+        val cfg = sampleCfg().copy(chatStyles = mapOf("张三" to listOf("formal", "brief")))
+        val r = Backup.import(Backup.export(cfg, sampleRoles(), includeApiKey = true), ConfigData(), emptyList())!!
+        assertEquals(listOf("formal", "brief"), r.config.chatStyles["张三"])
+    }
+
+    @Test
+    fun `没有 chatStyles 的老备份不会把当前的分人设置清掉`() {
+        val cur = sampleCfg().copy(chatStyles = mapOf("张三" to listOf("formal")))
+        val legacy = """{"app":"TalkTact","schema":1,"config":{"ctx":8}}"""
+        val r = Backup.import(legacy, cur, emptyList())!!
+        assertEquals(cur.chatStyles, r.config.chatStyles)
+    }
 }

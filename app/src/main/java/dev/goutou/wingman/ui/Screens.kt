@@ -103,6 +103,7 @@ import dev.goutou.wingman.config.GLASS_QUALITY_LOW
 import dev.goutou.wingman.config.Role
 import dev.goutou.wingman.config.Roles
 import dev.goutou.wingman.config.replyPlan
+import dev.goutou.wingman.config.replyPlanFor
 import dev.goutou.wingman.llm.BUILT_IN_SKILLS
 import dev.goutou.wingman.llm.ReplyStyle
 import dev.goutou.wingman.llm.REPLY_STYLES
@@ -1413,6 +1414,26 @@ fun SettingsScreen(
  * 之后，看到的是五个词而不是九个名词，也更不容易把「要配的」和「排障用的」混在一起。
  * 左对齐到卡片外沿再往右 4dp，跟卡内文字错开半格 —— 看起来是「标题」而不是「正文」。
  */
+/**
+ * 「＋」小圆标：用在「添加联系人」那张小卡的左边。
+ *
+ * 单独抽出来，是因为**折叠态和展开态都要用同一个标记** —— 不抽的话两个状态各写一遍，
+ * 哪天改一个漏一个，两个状态就长成了两种东西。
+ */
+@Composable
+private fun AddBadge() {
+    val palette = LocalPalette.current
+    Box(
+        Modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(palette.primary.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("＋", fontSize = 12.sp, color = palette.primary, fontWeight = FontWeight.SemiBold)
+    }
+}
+
 @Composable
 private fun GroupTitle(text: String) {
     val palette = LocalPalette.current
@@ -1652,6 +1673,30 @@ fun saveCustomStyles(styles: List<ReplyStyle>, styleIds: List<String>) {
     )
     persisted = fresh
     onSaved()
+}
+
+/** 「按联系人单独设置」落盘（立刻生效，见 `ConfigStore.setChatStyles`）。 */
+fun saveChatStyles(map: Map<String, List<String>>) {
+    store.setChatStyles(map)
+    val fresh = store.load()
+    d = d.copy(chatStyles = fresh.chatStyles)
+    persisted = fresh
+    onSaved()
+}
+
+/**
+ * 把**当前生效范围**的勾选落盘。
+ *
+ * 范围 = 所有人 → 走原来那条（[saveReplyPlan]，顺带重拼提示词快照）；
+ * 范围 = 某个会话 → 只写这一项，**不重拼快照**：那位用的规格是请求时按会话现拼的
+ *（见 llm/LlmClient 的 `applyReplyPlan(systemText, plan)`），快照保持全局那份。
+ */
+fun saveScopedStyles(scope: String, ids: List<String>) {
+    if (scope.isBlank()) {
+        saveReplyPlan(ids)
+        return
+    }
+    saveChatStyles(d.chatStyles + (scope to ids.filter { it.isNotBlank() }.distinct()))
 }
 
 val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -2300,7 +2345,183 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             Text("回复风格（可多选）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
             Spacer(Modifier.height(8.dp))
 
-            val plan = d.replyPlan
+            // ── 生效范围：下面这排药丸改的是谁 ────────────────────────────────────
+            // 「按联系人单独设置」的入口就做在这里：不另开一块表单，而是**切换这排药丸的作用域** ——
+            // 选「所有人」= 全局那套（老行为），选某个人 = 只改 TA 的。这样只有一套勾选交互要维护，
+            // 也不会出现「上面勾的」和「下面表单里勾的」两套状态互相打架。
+            //
+            // 只在**添加过**的人之间切换（用户要求：自选添加，其余全部默认）。
+            // 以前这里会把注入侧回传的候选名一并摊出来（最多 9 个），于是卡片上永远堆着一堆
+            // 你根本没打算单独设置的人；现在候选名收在「＋ 添加联系人」后面，点开才列。
+            var scope by remember { mutableStateOf("") }
+            var adding by remember { mutableStateOf(false) }
+            val added = remember(d.chatStyles) { d.chatStyles.keys.sorted() }
+            // 选中的那个会话可能刚从表里删掉了 → 落回全局，免得勾选写到一个不存在的会话上
+            if (scope.isNotBlank() && scope !in added) scope = ""
+            val scoped = scope.isNotBlank()
+
+            Text("生效范围（这排药丸改的是谁）", fontSize = 13.sp, color = palette.sub)
+            Spacer(Modifier.height(4.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                (listOf("") + added).chunked(3).forEach { rowNames ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        rowNames.forEach { name ->
+                            GlassPill(
+                                // 不在这里切字数：胶囊内部是「单行 + 省略号」，能显示多少由实际宽度决定
+                                //（手动切一次再被省略号切一次，会变成「老王…」这种双截断，很怪）。
+                                // 全名在下面那行提示里照旧能看到。
+                                if (name.isBlank()) "所有人" else name,
+                                name == scope,
+                                Modifier.weight(1f),
+                            ) { scope = name; adding = false }
+                        }
+                        repeat(3 - rowNames.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+
+            // 「添加联系人」：候选名来自注入侧回传（和白名单页同一份），没在微信里打开过的不会出现。
+            //
+            // 做成**卡内小卡**而不是一行文字按钮：折叠时是「＋ 标题 / 副标题 / 展开」的一整块，
+            // 点开才摊开候选名单；名单封顶 168dp、可滚 —— 会话多的时候不会把风格卡撑长。
+            // 候选块用 primary 色（和上面那排风格药丸区分开）：一个是「选中态」，一个是「可添加」。
+            val addableCandidates = remember(d.chatStyles) {
+                store.chatCandidates().map { Roles.normalizeKey(it) }
+                    .filter { it.isNotBlank() && it !in d.chatStyles.keys }
+                    .distinct()
+                    .sorted()
+            }
+            val addShape = RoundedCornerShape(RadiusR2)
+            val chipShape = RoundedCornerShape(RadiusR1)
+            Spacer(Modifier.height(6.dp))
+            if (!adding) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(addShape)
+                        .background(palette.glassTint.copy(alpha = 0.10f))
+                        .border(1.dp, palette.glassBorder.copy(alpha = 0.45f), addShape)
+                        .clickable { adding = true }
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AddBadge()
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("添加联系人", fontSize = 13.sp, color = palette.text)
+                        Text("没添加的人一律用「所有人」那套", fontSize = 11.sp, color = palette.sub)
+                    }
+                    Text("展开", fontSize = 12.sp, color = palette.sub)
+                }
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(addShape)
+                        .background(palette.glassTint.copy(alpha = 0.10f))
+                        .border(1.dp, palette.primary.copy(alpha = 0.30f), addShape)
+                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        AddBadge()
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "添加联系人",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = palette.text,
+                            )
+                            Text("点名字就加进来（都是你在微信里打开过的会话）", fontSize = 11.sp, color = palette.sub)
+                        }
+                        TextButton(
+                            onClick = { adding = false },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        ) { Text("收起", fontSize = 12.sp, color = palette.sub) }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (addableCandidates.isEmpty()) {
+                        Text(
+                            "还没有可添加的会话名：在微信里打开几个聊天，名字会自己出现在这里。",
+                            fontSize = 12.sp,
+                            color = palette.sub,
+                        )
+                    } else {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 168.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            // **两列而不是三列**：三列时每颗只有 ~63dp 的文字位（360dp 宽的机器上），
+                            // 名字会被省略号切得只剩两三个字；两列能把 8~10 个字的名字整整齐齐显示完。
+                            addableCandidates.take(24).chunked(2).forEach { rowNames ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    rowNames.forEach { name ->
+                                        Box(
+                                            Modifier
+                                                .weight(1f)
+                                                .clip(chipShape)
+                                                .background(palette.primary.copy(alpha = 0.10f))
+                                                .border(1.dp, palette.primary.copy(alpha = 0.28f), chipShape)
+                                                .clickable {
+                                                    // 添加 = 先建一条「跟进全局」的记录（见 llm/decodeChatStyles）：
+                                                    // TA 的条数与风格**跟「所有人」一模一样**，改哪条才分哪条 ——
+                                                    // 所以刚添加完，TA 的表现和以前没有任何变化。
+                                                    saveChatStyles(d.chatStyles + (name to emptyList<String>()))
+                                                    scope = name
+                                                    adding = false
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 7.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                "＋ $name",
+                                                fontSize = 12.sp,
+                                                color = palette.primary,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                    repeat(2 - rowNames.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "加进来之后 TA 先是跟「所有人」完全一样，改哪条才只对 TA 生效。",
+                        fontSize = 11.sp,
+                        color = palette.sub,
+                    )
+                }
+            }
+
+            if (scoped) {
+                Spacer(Modifier.height(4.dp))
+                val scopedIds = d.chatStyles[scope].orEmpty()
+                Text(
+                    if (scopedIds.isEmpty()) "「$scope」已添加，现在跟着「所有人」走 —— 改一下就只对 TA 生效。"
+                    else "「$scope」单独设过（${scopedIds.size} 条），下面勾的就是 TA 的。",
+                    fontSize = 12.sp,
+                    color = palette.sub,
+                )
+                TextButton(
+                    onClick = {
+                        // 先把这个范围收回来再删：删完它就不在表里了，留着 scope 会指向一个空范围
+                        val gone = scope
+                        scope = ""
+                        saveChatStyles(d.chatStyles - gone)
+                    },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                ) { Text("删掉 TA 的单独设置（回到所有人）", fontSize = 12.sp, color = palette.bad) }
+            }
+            Spacer(Modifier.height(8.dp))
+
+            // 「当前会写」也跟着范围走 —— 否则选了某个人、底下那行还在报全局的条数
+            val plan = if (scope.isBlank()) d.replyPlan else d.replyPlanFor(scope)
             // 界面上「亮着」的 = 用户**显式勾选**的那几个，**不是** [plan.styles]。
             //
             // [plan.styles] 里掺了「为凑够条数自动补齐」的风格，拿它当选中态一定会出问题：
@@ -2309,7 +2530,9 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             // 界面永远只亮真正勾了的那几个。
             //
             // 空 = 还没配过 → 显示默认三样（那正是实际会用的那三种，见 DEFAULT_STYLE_IDS）。
-            val explicitIds = d.replyStyleIds.ifEmpty { DEFAULT_STYLE_IDS }
+            val globalIds = d.replyStyleIds.ifEmpty { DEFAULT_STYLE_IDS }
+            // 当前范围那一套：某位单独设过就用 TA 的，否则（以及选「所有人」时）用全局那套
+            val explicitIds = if (scoped) d.chatStyles[scope].orEmpty().ifEmpty { globalIds } else globalIds
             // 现存风格 id（内置 + 自定义）：勾选集里可能残留「加过又删掉」的自定义风格，
             // 不清掉它会白占一个位置（条数就那么几个），而界面上又找不到它。
             val knownIds = REPLY_STYLES.map { it.id }.toSet() + d.replyCustomStyles.map { it.id }
@@ -2339,7 +2562,8 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                                 // 点掉最后一个 = 保持现状），而且只认**显式勾选**那一份。
                                 // 这里**不能**自己算 `chosenIds ± st.id`：那会把自动补齐的风格也当成
                                 // 用户勾过的存下去，于是点一个亮着的风格会「减掉又被补回来」，像没反应。
-                                saveReplyPlan(toggledStyleIds(explicitIds, st.id, MAX_REPLIES, knownIds))
+                                // 只改**当前范围**的勾选，不偷偷动别的范围
+                                saveScopedStyles(scope, toggledStyleIds(explicitIds, st.id, MAX_REPLIES, knownIds))
                             }
                         }
                         // 一行放不满时用空 Spacer 补齐权重，避免最后几个被拉得特别宽
@@ -2368,7 +2592,8 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             GlassPill(st.displayLabel, st.id in chosenIds, Modifier.weight(1f)) {
-                                saveReplyPlan(toggledStyleIds(explicitIds, st.id, MAX_REPLIES, knownIds))
+                                // 只改**当前范围**的勾选，不偷偷动别的范围
+                                saveScopedStyles(scope, toggledStyleIds(explicitIds, st.id, MAX_REPLIES, knownIds))
                             }
                             TextButton(
                                 onClick = {
@@ -2376,7 +2601,14 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                                     // 勾选集里的话，它会一直占着一个位置（条数就那么几个），
                                     // 而界面上又找不到它，表现是「条数明明给了 3 条却只出来 2 条」。
                                     val rest = d.replyCustomStyles.filter { it.id != st.id }
-                                    saveCustomStyles(rest, explicitIds.filter { it != st.id })
+                                    // 这条风格可能被**任何范围**勾着（全局 + 每个「按联系人」）——
+                                    // 只清全局的话，它会在别的范围里以「认不出来的 id」留着，
+                                    // 而条数就是从勾选数派生的（见 llm/plannedReplyCount），白占一个位置。
+                                    val cleaned = d.chatStyles
+                                        .mapValues { (_, ids) -> ids.filter { it != st.id } }
+                                        .filterValues { it.isNotEmpty() }
+                                    saveCustomStyles(rest, globalIds.filter { it != st.id })
+                                    saveChatStyles(cleaned)
                                 },
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             ) { Text("删除", fontSize = 12.sp, color = palette.bad) }
@@ -2413,8 +2645,11 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                                 // 加完**直接选中，并且排在勾选集最前**：条数只有 n 个位置，
                                 // 加了不选中、或者被末尾挤掉，用户看到的就是「加了没用」。
                                 val list = d.replyCustomStyles + st
-                                val next = (listOf(st.id) + explicitIds).distinct()
-                                saveCustomStyles(list, next.take(MAX_REPLIES))
+                                val next = (listOf(st.id) + explicitIds).distinct().take(MAX_REPLIES)
+                                // 只动**当前范围**的勾选：选着某个人时，加一条新风格不该把
+                                // 全局那套（别人用的）也改掉。
+                                saveCustomStyles(list, if (scoped) globalIds else next)
+                                if (scoped) saveChatStyles(d.chatStyles + (scope to next))
                                 newStyleName = ""
                                 newStyleHint = ""
                                 "已加「${st.displayLabel}」并选中"
@@ -2443,7 +2678,8 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             Spacer(Modifier.height(10.dp))
 
             HintText(
-                "当前会写：${plan.summary} —— 勾选顺序就是第 1/2/3 条的顺序。" +
+                (if (scoped) "「$scope」单独用：" else "") +
+                    "当前会写：${plan.summary} —— 勾选顺序就是第 1/2/3 条的顺序。" +
                     "这段会写进提示词，让模型按你选的类型各写一条 —— " +
                     "所以「风格」不是给候选贴标签，是真的在要求模型换着写。",
                 fontSize = 13.sp,

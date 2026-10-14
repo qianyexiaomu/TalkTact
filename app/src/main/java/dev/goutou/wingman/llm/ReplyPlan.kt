@@ -138,6 +138,53 @@ fun decodeCustomStyles(raw: String): List<ReplyStyle> =
         .distinctBy { it.id }
         .take(MAX_CUSTOM_STYLES)
 
+// ── 「按联系人单独设置」：会话名 → 该会话专用的风格 id 列表 ──────────────────────
+
+/** 「按联系人」表里，会话名与风格 id 之间、以及 id 之间用的分隔符（一行一个会话）。 */
+private const val CHAT_FIELD_SEP = '\u0002'
+
+/**
+ * 「按联系人单独设置」↔ 偏好里的字符串。**一行一个会话**：`会话名\u0002id1\u0002id2…`。
+ *
+ * 两个刻意的选择：
+ * - **不用 `putStringSet`**：Set 存不住顺序，而顺序决定「第 1 条走哪个风格」（同 [encodeCustomStyles]）；
+ * - **不用 JSON**：这一份注入侧也要读（它得按会话名算「这一屏该给几条」），纯文本最容易核对。
+ *
+ * id 列表**可以为空**（写成 `名字\u0002`），那是「已添加、但先跟进全局」这条**合法状态** ——
+ * 设置页的「＋ 添加联系人」建的就是它（见 ui/Screens.kt）。判定在 `ConfigData.replyPlanFor`：
+ * 空列表 → 回落全局那套（和「不在表里」同一个分支）。
+ */
+fun encodeChatStyles(map: Map<String, List<String>>): String =
+    map.entries
+        .filter { it.key.isNotBlank() }
+        .joinToString(CUSTOM_ENTRY_SEP.toString()) { (chat, ids) ->
+            chat + CHAT_FIELD_SEP + ids.filter { it.isNotBlank() }.joinToString(CHAT_FIELD_SEP.toString())
+        }
+
+/**
+ * 解回来。解不出来的那一行**跳过**，不整体作废 —— 坏一行就丢光用户所有设置，代价太大。
+ *
+ * 会话名**不在这里归一化**：那是 `Roles.normalizeKey` 的事（属于 config 包）。
+ * 这一层是纯逻辑，不认识会话名长什么样，也不该认识。
+ */
+fun decodeChatStyles(raw: String): Map<String, List<String>> {
+    val out = LinkedHashMap<String, List<String>>()
+    for (line in raw.split(CUSTOM_ENTRY_SEP)) {
+        // **必须带分隔符**才算一条记录：只有名字的那种行是被写坏的，跳过。
+        // 带分隔符、后面没有 id 的，是「已添加、跟进全局」那条合法状态（见 [encodeChatStyles]）。
+        val at = line.indexOf(CHAT_FIELD_SEP)
+        if (at < 0) continue
+        val chat = line.substring(0, at).trim()
+        if (chat.isEmpty()) continue
+        out[chat] = line.substring(at + 1)
+            .split(CHAT_FIELD_SEP)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+    return out
+}
+
 /**
  * 条数下限 / 上限。
  *

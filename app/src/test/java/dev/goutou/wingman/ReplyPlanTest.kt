@@ -1,5 +1,8 @@
 package dev.goutou.wingman
 
+import dev.goutou.wingman.config.ConfigData
+import dev.goutou.wingman.config.replyPlan
+import dev.goutou.wingman.config.replyPlanFor
 import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
 import dev.goutou.wingman.llm.DEFAULT_PROMPT
 import dev.goutou.wingman.llm.DEFAULT_REPLY_COUNT
@@ -14,7 +17,9 @@ import dev.goutou.wingman.llm.applyReplyPlan
 import dev.goutou.wingman.llm.buildSkillPrompt
 import dev.goutou.wingman.llm.coreOf
 import dev.goutou.wingman.llm.customStyle
+import dev.goutou.wingman.llm.decodeChatStyles
 import dev.goutou.wingman.llm.decodeCustomStyles
+import dev.goutou.wingman.llm.encodeChatStyles
 import dev.goutou.wingman.llm.encodeCustomStyles
 import dev.goutou.wingman.llm.gradedReplyPrompt
 import dev.goutou.wingman.llm.gradedRiskPrompt
@@ -518,5 +523,70 @@ class ReplyPlanTest {
         ids = toggledStyleIds(ids, "formal", 3, builtInIds)
         assertEquals(listOf("formal", "brief", "empathy"), ids)
         assertEquals(listOf("正式", "简短", "共情"), ReplyPlan.of(3, ids).labels)
+    }
+
+    // ── 按联系人单独设置 ────────────────────────────────────────────────────
+
+    @Test
+    fun `按联系人：没设过的会话回落全局那套`() {
+        val cfg = ConfigData(
+            replyStyleIds = listOf("safe", "humor"),
+            chatStyles = mapOf("张三" to listOf("formal")),
+        )
+        assertEquals(listOf("safe", "humor"), cfg.replyPlanFor("李四").styles.map { it.id })
+    }
+
+    @Test
+    fun `按联系人：设过的会话走自己那套，条数跟着它的勾选数`() {
+        val cfg = ConfigData(
+            replyStyleIds = listOf("safe", "humor"),
+            chatStyles = mapOf("张三" to listOf("formal", "brief")),
+        )
+        val p = cfg.replyPlanFor("张三")
+        assertEquals(listOf("formal", "brief"), p.styles.map { it.id })
+        assertEquals(2, p.count)
+        assertEquals(2, cfg.replyPlanFor("李四").count)
+    }
+
+    @Test
+    fun `按联系人：空列表不算覆盖（否则这个会话永远回不到全局）`() {
+        val cfg = ConfigData(
+            replyStyleIds = listOf("safe"),
+            chatStyles = mapOf("张三" to emptyList()),
+        )
+        assertEquals(listOf("safe"), cfg.replyPlanFor("张三").styles.map { it.id })
+    }
+
+    @Test
+    fun `按联系人：chat 为 null 或空名 = 全局那套（App 里的自检走这条）`() {
+        val cfg = ConfigData(replyStyleIds = listOf("safe", "humor"), chatStyles = mapOf("张三" to listOf("formal")))
+        assertEquals(cfg.replyPlan, cfg.replyPlanFor(null))
+        assertEquals(cfg.replyPlan, cfg.replyPlanFor(""))
+    }
+
+    @Test
+    fun `按联系人：会话名归一化后匹配（尾部未读数不影响）`() {
+        val cfg = ConfigData(replyStyleIds = listOf("safe"), chatStyles = mapOf("张三" to listOf("formal")))
+        assertEquals(listOf("formal"), cfg.replyPlanFor("张三 (3)").styles.map { it.id })
+        assertEquals(listOf("formal"), cfg.replyPlanFor("张三（9）").styles.map { it.id })
+    }
+
+    @Test
+    fun `chatStyles 编解码：顺序不丢、空列表保留（跟进全局）、坏行跳过`() {
+        val map = mapOf("张三" to listOf("formal", "brief"), "李四" to listOf("humor"))
+        val back = decodeChatStyles(encodeChatStyles(map))
+        assertEquals(listOf("formal", "brief"), back["张三"])
+        assertEquals(listOf("humor"), back["李四"])
+
+        // 空列表要**保留** —— 那是「已添加、先跟进全局」，不是坏数据（设置页「＋ 添加联系人」建的就是它）
+        assertEquals(
+            mapOf("空" to emptyList<String>()),
+            decodeChatStyles(encodeChatStyles(mapOf("空" to emptyList()))),
+        )
+        // 只有会话名、**没有分隔符**的那一行才算坏数据：跳过它，但别让别的行一起没了
+        assertEquals(
+            mapOf("张三" to listOf("safe"), "李四" to emptyList<String>()),
+            decodeChatStyles("张三\u0002safe\n孤儿会话\n李四\u0002"),
+        )
     }
 }
