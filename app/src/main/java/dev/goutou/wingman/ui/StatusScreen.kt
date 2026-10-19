@@ -233,7 +233,7 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
                         )
                         Text(
                             "${checks.size} 项已检测 · 通过 $ok · 待确认 $warn · 有问题 $bad",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = palette.sub,
                         )
                         // hero 的职责收窄成两件事：一眼看健康 + 直接点出**最该处理的那一条**。
@@ -242,13 +242,13 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
                         if (firstIssue != null) {
                             Text(
                                 "最该处理：${firstIssue.title} —— ${firstIssue.desc.take(70)}",
-                                fontSize = 13.sp,
+                                fontSize = TextSize.body,
                                 color = levelText(palette, firstIssue.level),
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(Space.xl))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatCell("${usage.first}", "调用次数", Modifier.weight(1f))
                     StatCell("${usage.second}", "累计 token", Modifier.weight(1f))
@@ -286,12 +286,12 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
         }
         item {
             GlassCard(glass) {
-                Text("接口自检", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("接口自检", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "只看「连不连得上、要多久」：发一次最小请求（一句 ping、只让它回 1 个 token）。\n" +
                         "不拼当前 skill、也不看模型回了什么 —— 模型没按 JSON 回复算不上连接问题，" +
                         "那种情况去「试一试」页验证。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
 
@@ -316,7 +316,7 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
                     else withContext(Dispatchers.IO) { NetInfo.geo(geoUrl, ip = targetIp) }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.lg))
                 NetRow("本机内网", localIp)
                 NetRow(
                     "本机公网",
@@ -324,15 +324,15 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
                     else joinInfo(localGeo?.ip, localGeo?.province ?: localGeo?.country, localGeo?.isp),
                 )
                 NetRow("目标服务器", joinInfo(targetIp, targetGeo?.province ?: targetGeo?.country), host)
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 HintText(
                     if (!cfg.geoEnabled) "归属地查询已在「高级设置 → 诊断 → 网络信息」里关掉（IP 仍然只在本机解析）。"
                     else "省份来自第三方 IP 库，仅供参考；取不到就显示 null。可在「高级设置 → 诊断 → 网络信息」里关掉或换接口。",
-                    fontSize = 10.sp,
+                    fontSize = TextSize.caption,
                     color = palette.sub,
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.lg))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
                         onClick = {
@@ -399,13 +399,13 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
                     Spacer(Modifier.width(10.dp))
                     Text(
                         probeVerdict ?: "",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = if (probeOk) palette.ok else palette.bad,
                     )
                 }
                 probeDetail?.let {
-                    Spacer(Modifier.height(4.dp))
-                    Text(it, fontSize = 13.sp, color = palette.sub)
+                    Spacer(Modifier.height(Space.xs))
+                    Text(it, fontSize = TextSize.body, color = palette.sub)
                 }
             }
         }

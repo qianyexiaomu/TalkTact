@@ -87,25 +87,25 @@ fun SettingsScreen(
         ScreenHeader("设置", "外观 · 高级设置 · 关于")
 
         GlassCard(d.glassAlpha) {
-            Text("外观", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-            Spacer(Modifier.height(6.dp))
-            Text("玻璃不透明度：${(d.glassAlpha * 100).toInt()}%", fontSize = 13.sp, color = palette.sub)
+            Text("外观", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Spacer(Modifier.height(Space.sm))
+            Text("玻璃不透明度：${(d.glassAlpha * 100).toInt()}%", fontSize = TextSize.body, color = palette.sub)
             Slider(value = d.glassAlpha, onValueChange = { update(d.copy(glassAlpha = it)) }, valueRange = 0.3f..1f)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             HintText(
                 "玻璃背景模糊：${d.glassBlur.toInt()}dp（面板背后做一次真实模糊；内置渐变背景没有细节可模糊，会自动跳过）",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
             Slider(value = d.glassBlur, onValueChange = { update(d.copy(glassBlur = it)) }, valueRange = 0f..40f)
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             // 设备分级：把「自动」实际判成了哪一档直接写出来，省得猜为什么效果不一样
             val lowRamDevice = remember { isLowRamDevice(context) }
             val effectiveQuality = decideGlassQuality(d.glassQuality, lowRamDevice, Build.VERSION.SDK_INT)
             Text(
                 "玻璃效果：${glassQualityLabel(effectiveQuality)}" +
                     if (d.glassQuality == GLASS_QUALITY_AUTO) "　（自动判定）" else "　（手动选的）",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -119,7 +119,7 @@ fun SettingsScreen(
                     update(d.copy(glassQuality = GLASS_QUALITY_LOW))
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = { pickImage.launch(arrayOf("image/*")) },
@@ -133,7 +133,7 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(RadiusR2),
                 ) { Text("恢复默认背景") }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             Text(
                 if (d.bgUri.isNotBlank()) {
                     "已设置自定义背景：玻璃面板背后会对它做真实的背景模糊 + 折射。"
@@ -141,17 +141,17 @@ fun SettingsScreen(
                     "当前用的是内置渐变背景（跟随系统明暗自动切换，不是图片）；" +
                         "选一张自己的图就会替换掉它，点「恢复默认背景」可以换回来。"
                 },
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
             // 压暗只对自定义背景图开放：内置渐变本身已经调过明度，
             // 再压一层会把配色一起糊掉，所以没选图时这个滑杆根本不出现。
             if (d.bgUri.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text("背景压暗：${(d.bgDim * 100).toInt()}%", fontSize = 13.sp, color = palette.sub)
+                Spacer(Modifier.height(Space.xs))
+                Text("背景压暗：${(d.bgDim * 100).toInt()}%", fontSize = TextSize.body, color = palette.sub)
                 Slider(value = d.bgDim, onValueChange = { update(d.copy(bgDim = it)) }, valueRange = 0f..0.8f)
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(Space.xxl))
             // 外观现在自己带一个保存按钮：接口那套已经搬进「高级设置」，别再共用一个「保存」了。
             // 滑杆是即时预览的，但**不点这个按钮就不会落盘** —— 红字挨着它。
             if (dirty) {
@@ -159,7 +159,7 @@ fun SettingsScreen(
                     Text(
                         "未保存，你所做出的改动不会被保存",
                         modifier = Modifier.weight(1f),
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.bad,
                     )
                     Spacer(Modifier.width(10.dp))
@@ -181,30 +181,30 @@ fun SettingsScreen(
         }
 
         GlassCard(d.glassAlpha) {
-            Text("高级设置", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("高级设置", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             // 三行「现在是什么样」：入口卡原来只有一句名词罗列（接口地址 / 分析 / 备份 / 诊断），
             // 看完仍然不知道当前配成了什么。摘要只**报状态**、不做判断，要改再进去。
             // 三行分别对应高级设置里的「接入 / 微信内 / 识别」三组，找东西时可以对上号。
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Text(
                 "接入：${d.baseUrl.ifBlank { "未填" }}　模型 ${d.model.ifBlank { "未填" }}　" +
                     "${if (d.graded) "模型分级" else "直通"}",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.text,
             )
             Text(
                 "微信内：自动分析 ${if (d.enabled) "开" else "关"}　参考 ${d.ctx} 条　间隔 ${d.minIntervalSec}s　" +
                     "白名单 ${if (d.whitelistEnabled) "${d.whitelist.size} 个" else "关"}",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
             Text(
                 "识别：图片文字 ${if (d.ocrEnabled) "开" else "关"}　本地代理 ${if (d.proxyEnabled) "开" else "关"}　" +
                     "归属地查询 ${if (d.geoEnabled) "开" else "关"}",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Button(
                 onClick = onOpenAdvanced,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -215,15 +215,15 @@ fun SettingsScreen(
 
         GlassCard(d.glassAlpha) {
             Text("关于", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = palette.text)
-            Spacer(Modifier.height(6.dp))
-            Text("版本：${appVersion(context)}", fontSize = 13.sp, color = palette.text)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
+            Text("版本：${appVersion(context)}", fontSize = TextSize.body, color = palette.text)
+            Spacer(Modifier.height(Space.sm))
             HintText(
                 "· 开启后，聊天页最近几条消息会发送到你填写的接口地址，请自行确认该服务可信。\n" +
                     "· API Key 以明文存放在本应用私有目录（不能加密：注入微信进程的代码需要跨进程读取，Keystore 密钥按 UID 隔离读不到）。\n" +
                     "· 只读消息、只把候选回复填进输入框，不会自动发送；但仍属于修改微信客户端行为，有风控风险，建议先用小号。\n" +
                     "· 日志关键字：[Goutou]。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
         }

@@ -64,26 +64,26 @@ internal fun GeoCard(store: ConfigStore, glassAlpha: Float) {
     }
 
     GlassCard(glassAlpha) {
-        Text("网络信息（归属地）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+        Text("网络信息（归属地）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
         Text(
             "「运行状态 → 接口自检」里那两行省份，是拿 IP 去问第三方库要的 —— 这是整个模块唯一一处" +
                 "会把 IP 发给别人的地方。关掉之后自检只显示 IP，一次都不问。",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.sub,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.md))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("查询 IP 归属地", fontSize = 15.sp, color = palette.text)
+                Text("查询 IP 归属地", fontSize = TextSize.emphasis, color = palette.text)
                 Text(
                     if (d.geoEnabled) "自检时带上省份（结果缓存 10 分钟）" else "已关闭：不请求任何第三方",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
             Switch(checked = d.geoEnabled, onCheckedChange = { saveGeoNow(it, d.geoEndpoint) })
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.md))
         GlassField(
             value = d.geoEndpoint,
             onValueChange = { d = d.copy(geoEndpoint = it) },
@@ -93,9 +93,9 @@ internal fun GeoCard(store: ConfigStore, glassAlpha: Float) {
             enabled = d.geoEnabled,
         )
         if (d.geoEnabled && d.geoEndpoint.trim() != persisted.geoEndpoint.trim()) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("地址还没保存", modifier = Modifier.weight(1f), fontSize = 13.sp, color = palette.bad)
+                Text("地址还没保存", modifier = Modifier.weight(1f), fontSize = TextSize.body, color = palette.bad)
                 Button(
                     onClick = { saveGeoNow(d.geoEnabled, d.geoEndpoint) },
                     modifier = Modifier.height(42.dp),
@@ -104,10 +104,10 @@ internal fun GeoCard(store: ConfigStore, glassAlpha: Float) {
                 ) { Text("保存地址") }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(Space.xs))
         HintText(
             "自己填的地址要能返回 JSON（内置用的是 ip.useragentinfo.com）；认不出的字段一律当没有，不会报错。",
-            fontSize = 10.sp,
+            fontSize = TextSize.caption,
             color = palette.sub,
         )
     }
@@ -161,16 +161,16 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
         // 而它原本排在整页最后，滚半天才到 —— 偏偏这是最常被复制的那一段。
         if (lastCall.isNotBlank()) {
             GlassCard(glassAlpha, border = palette.primary.copy(alpha = CardBorderAlpha)) {
-                Text("最近一次调用（注入侧真正发出去的）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("最近一次调用（注入侧真正发出去的）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "发生于 ${formatTime(lastCallAt)} · 这里是微信进程实际拿去调接口的那一份，不是本 App 里的配置。" +
                         "核对「当前军师」有没有真的生效，看 system 长度那一行。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(lastCall, fontSize = 10.sp, color = palette.text)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
+                Text(lastCall, fontSize = TextSize.caption, color = palette.text)
+                Spacer(Modifier.height(Space.md))
                 OutlinedButton(
                     onClick = { clipboard.setText(AnnotatedString(lastCall)) },
                     shape = RoundedCornerShape(RadiusR2),
@@ -178,8 +178,8 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
             }
         } else {
             GlassCard(glassAlpha) {
-                Text("还没有调用记录", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-                Text("在微信里生成过一次候选回复之后，那份请求就会留在这里。", fontSize = 13.sp, color = palette.sub)
+                Text("还没有调用记录", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("在微信里生成过一次候选回复之后，那份请求就会留在这里。", fontSize = TextSize.body, color = palette.sub)
             }
         }
 
@@ -187,14 +187,14 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
         GeoCard(store, glassAlpha)
 
         GlassCard(glassAlpha) {
-            Text("抓取微信界面", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("抓取微信界面", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             Text(
                 "某些聊天页连卡片都不弹时用这个：先在微信里停在那个聊天页 → 切回这里点下面的按钮 → " +
                     "再切回微信（那个页面重新出现就会自动抓）→ 回来点「刷新」→ 复制下面的「诊断」发我。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = { store.requestDiag(); diagAsked = true },
@@ -202,23 +202,23 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
                 ) { Text("抓当前微信界面") }
                 if (diagAsked) {
-                    Text("已排队，切回微信那一页即抓", fontSize = 13.sp, color = palette.ok)
+                    Text("已排队，切回微信那一页即抓", fontSize = TextSize.body, color = palette.ok)
                 }
             }
         }
 
         if (trace.isNotBlank()) {
             GlassCard(glassAlpha, border = palette.okMark.copy(alpha = CardBorderAlpha)) {
-                Text("决策轨迹（每一轮读到什么、停在哪一步）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("决策轨迹（每一轮读到什么、停在哪一步）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "更新于 ${formatTime(traceAt)} · 卡片不弹时先看它：注入侧每一轮都留一条，" +
                         "扫一眼就知道是卡在「找不到输入框」还是「最后一条是我发的」。它刻意不含聊天正文。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(trace, fontSize = 10.sp, color = palette.text)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
+                Text(trace, fontSize = TextSize.caption, color = palette.text)
+                Spacer(Modifier.height(Space.md))
                 OutlinedButton(
                     onClick = { clipboard.setText(AnnotatedString(trace)) },
                     shape = RoundedCornerShape(RadiusR2),
@@ -226,11 +226,11 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
             }
         } else {
             GlassCard(glassAlpha) {
-                Text("还没有轨迹", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("还没有轨迹", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "在微信里打开一个聊天页停一会儿，注入侧就会把判定记下来并自动回传；" +
                         "也可以点上面那个「抓当前微信界面」立刻带一份回来。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
@@ -238,15 +238,15 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
 
         if (diag.isNotBlank()) {
             GlassCard(glassAlpha, border = palette.warnMark.copy(alpha = CardBorderAlpha)) {
-                Text("诊断（来自微信进程）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("诊断（来自微信进程）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "生成于 ${formatTime(diagAt)} · 排查「读不到消息 / 全是图片」时把它复制给对方",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(diag, fontSize = 10.sp, color = palette.text)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
+                Text(diag, fontSize = TextSize.caption, color = palette.text)
+                Spacer(Modifier.height(Space.md))
                 OutlinedButton(
                     onClick = { clipboard.setText(AnnotatedString(diag)) },
                     shape = RoundedCornerShape(RadiusR2),
@@ -254,20 +254,20 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
             }
         } else {
             GlassCard(glassAlpha) {
-                Text("还没有诊断", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-                Text("上面那个按钮抓过一次之后，微信进程会把界面结构留在这里。", fontSize = 13.sp, color = palette.sub)
+                Text("还没有诊断", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("上面那个按钮抓过一次之后，微信进程会把界面结构留在这里。", fontSize = TextSize.body, color = palette.sub)
             }
         }
 
         // 页底固定一个次级导出入口（排障动线：抓完 → 打包 → 发出去）
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.sm))
         OutlinedButton(
             onClick = { diagLauncher.launch("TalkTact-诊断包.zip") },
             modifier = Modifier.fillMaxWidth().height(46.dp),
             shape = RoundedCornerShape(RadiusR2),
         ) { Text("导出诊断包（.zip）") }
         if (exportNote.isNotBlank()) {
-            Text(exportNote, fontSize = 13.sp, color = palette.sub, modifier = Modifier.padding(top = 6.dp))
+            Text(exportNote, fontSize = TextSize.body, color = palette.sub, modifier = Modifier.padding(top = 6.dp))
         }
     }
 }

@@ -94,25 +94,25 @@ fun RolesScreen(store: ConfigStore, glassAlpha: Float, open: String?, onOpen: (S
         }
 
         GlassCard(glassAlpha) {
-            Text("这是干什么的", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("这是干什么的", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             Text(
                 "模块会在你打开某个聊天页时，把读到的消息按联系人归档到这里（1 小时内重复的内容只留一条）。\n" +
                     "点进某个人，写上「TA 是你什么人」和「平时的关系」—— 这些会连同之前攒下的聊天记录一起，\n" +
                     "拼进提示词，直接影响「军师」生成出来的回复。\n" +
                     "长按某一项可以直接删除它；点进去可以改名字，\n" +
                         "也能「把另一个角色合并进来」—— 同一个人被记成两条时用那个。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
         }
 
         if (roles.isEmpty()) {
             GlassCard(glassAlpha) {
-                Text("还没有记录", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("还没有记录", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "去微信里打开几个聊天页，每个停两三秒，再回来点「刷新」。\n" +
                         "（只在聊天页可见时读得到，所以记录是「你在场时看到的那几条」慢慢攒起来的。）",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
@@ -164,14 +164,14 @@ fun RolesScreen(store: ConfigStore, glassAlpha: Float, open: String?, onOpen: (S
                             if (role.renamed) {
                                 Text(
                                     " ◦ 识别名 ${role.key.take(10)}",
-                                    fontSize = 10.sp,
+                                    fontSize = TextSize.caption,
                                     color = palette.warn,
                                     modifier = Modifier.weight(1f),
                                 )
                             } else {
                                 Spacer(Modifier.weight(1f))
                             }
-                            Text("${role.msgs.size} 条", fontSize = 13.sp, color = palette.sub)
+                            Text("${role.msgs.size} 条", fontSize = TextSize.body, color = palette.sub)
                         }
                         Text(
                             when {
@@ -182,7 +182,7 @@ fun RolesScreen(store: ConfigStore, glassAlpha: Float, open: String?, onOpen: (S
                                 role.relation.isBlank() -> "还没写 TA 是你什么人"
                                 else -> "${role.relation}${if (role.note.isBlank()) "" else " · ${role.note.take(18)}"}"
                             },
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = when {
                                 self -> palette.ok
                                 role.relation.isBlank() -> palette.warn
@@ -192,7 +192,7 @@ fun RolesScreen(store: ConfigStore, glassAlpha: Float, open: String?, onOpen: (S
                         )
                         Text(
                             "最近一条：${if (role.lastAt > 0) formatTime(role.lastAt) else "—"}",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = palette.sub,
                         )
                     }
@@ -262,11 +262,11 @@ internal fun RoleDetail(
         }
 
         GlassCard(glassAlpha) {
-            Text("TA 是你什么人", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("TA 是你什么人", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             if (role.renamed) {
                 Text(
                     "（识别到的会话名是「${role.key}」，它负责匹配、不会被改动，所以改了名字以后消息还是记到这一条）",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
@@ -280,23 +280,23 @@ internal fun RoleDetail(
                     repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
             GlassField(
                 value = note,
                 onValueChange = { note = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 110.dp),
                 label = { Text("平时的关系（越具体越有用）") },
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Text(
                 "例：同一个组的后端，说话直接，最近在催我 review；上次帮他带过饭。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
             if (dirty) {
-                Text("未保存，你所做出的改动不会被保存", fontSize = 13.sp, color = palette.bad)
-                Spacer(Modifier.height(6.dp))
+                Text("未保存，你所做出的改动不会被保存", fontSize = TextSize.body, color = palette.bad)
+                Spacer(Modifier.height(Space.sm))
             }
             Button(
                 onClick = {
@@ -312,64 +312,64 @@ internal fun RoleDetail(
         }
 
         GlassCard(glassAlpha) {
-            Text("记下来的聊天（${role.msgs.size} 条）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("记下来的聊天（${role.msgs.size} 条）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             Text(
                 "时间是我「看到」它的时间，不是微信里那条消息的真实时间 —— 微信不给这条信息，" +
                     "而模块只在聊天页可见时读得到。生成回复时会带上最近 20 条（屏幕上已有的不再重复）。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             if (role.msgs.isEmpty()) {
-                Text("（还没有）", fontSize = 13.sp, color = palette.sub)
+                Text("（还没有）", fontSize = TextSize.body, color = palette.sub)
             } else {
                 var lastShown = 0L
                 role.msgs.takeLast(60).forEach { m ->
                     if (m.at - lastShown > 10 * 60_000L) {
                         lastShown = m.at
-                        Text(formatTime(m.at), fontSize = 10.sp, color = palette.sub, modifier = Modifier.padding(top = 6.dp))
+                        Text(formatTime(m.at), fontSize = TextSize.caption, color = palette.sub, modifier = Modifier.padding(top = 6.dp))
                     }
                     Text(
                         "${if (m.fromMe) "我" else "对方"}：${m.text}",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = if (m.fromMe) palette.sub else palette.text,
                     )
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.xl))
             OutlinedButton(
                 onClick = { mergeOpen = true },
                 enabled = mergeCandidates.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().height(46.dp),
                 shape = RoundedCornerShape(RadiusR2),
             ) { Text("把另一个角色合并进来") }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             Text(
                 if (mergeCandidates.isEmpty()) {
                     "还没有别的角色可以合并。"
                 } else {
                     "同一个人被记成两条时用这个：选一个角色，把它的记录并进这一条（按时间排好）。"
                 },
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
             mergedNote?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, fontSize = 13.sp, color = palette.ok)
+                Spacer(Modifier.height(Space.sm))
+                Text(it, fontSize = TextSize.body, color = palette.ok)
             }
         }
 
         // 危险操作独立成一张卡（设计师 P1）：它们原来挤在「记下来的聊天」卡底部、
         // 和「合并进来」只隔一行，而这两个都**不可撤销** —— 误触的代价太大，不该混在浏览区里。
         GlassCard(glassAlpha, border = palette.badMark.copy(alpha = CardBorderAlpha)) {
-            Text("危险操作", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.bad)
+            Text("危险操作", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.bad)
             Text(
                 "下面两个都不能撤销：清空只删记下来的聊天（改名与档案保留）；" +
                     "删除会把这条角色整个删掉（记录 + 档案一起）。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = { confirm = "clear" },
@@ -399,11 +399,11 @@ internal fun RoleDetail(
                         singleLine = true,
                         label = { Text("显示名字") },
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.md))
                     Text(
                         "这里只改显示。识别到的会话名「${role.key}」不变 —— 所以改完名字，" +
                             "以后这个会话的消息还是记到同一条上，不会分家。",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
@@ -426,10 +426,10 @@ internal fun RoleDetail(
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                     Text(
                         "合并后：两边记录按时间排好留在「${role.name}」，被并的那个角色会消失。",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.md))
                     mergeCandidates.forEach { o ->
                         Column(
                             Modifier
@@ -446,7 +446,7 @@ internal fun RoleDetail(
                             Text(
                                 "${o.msgs.size} 条记录" +
                                     if (o.relation.isNotBlank()) " · ${o.relation}" else "",
-                                fontSize = 13.sp,
+                                fontSize = TextSize.body,
                                 color = palette.sub,
                             )
                         }
@@ -532,14 +532,14 @@ internal fun SelfStyleDetail(store: ConfigStore, glassAlpha: Float) {
 
         item {
             GlassCard(glassAlpha) {
-                Text("这是干什么的", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("这是干什么的", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "把「你自己发出去的话」攒起来，每天在你设定的时间交给模型提炼成一份说话风格档案。\n" +
                         "「军师」生成候选回复时会参考它 —— 回复就会更像你平时说话的样子。\n\n" +
                         "关掉之后：不再采集、不再生成，也不再使用（已经生成的那份留着，重新打开立刻可用）；\n" +
                         "已经攒下的原始记录会被清掉。\n" +
                         "样本只在你打开聊天页时才读得到，所以是「你在场时看到的那几句」慢慢攒起来的。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
@@ -551,13 +551,13 @@ internal fun SelfStyleDetail(store: ConfigStore, glassAlpha: Float) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             "把我的说话风格做成 skill",
-                            fontSize = 15.sp,
+                            fontSize = TextSize.emphasis,
                             fontWeight = FontWeight.Medium,
                             color = palette.text,
                         )
                         Text(
                             if (on) "已开启：会采集我说的话" else "未开启：不采集、不生成、不存储",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = if (on) palette.ok else palette.sub,
                         )
                     }
@@ -577,14 +577,14 @@ internal fun SelfStyleDetail(store: ConfigStore, glassAlpha: Float) {
             GlassCard(glassAlpha) {
                 Text(
                     "每天什么时候生成",
-                    fontSize = 15.sp,
+                    fontSize = TextSize.emphasis,
                     fontWeight = FontWeight.Medium,
                     color = palette.text,
                 )
                 Text(
                     "现在是 ${"$hour".padStart(2, '0')}:00 —— 0 点到 23 点里挑都行。" +
                         if (on) "改完立刻生效（按新的时间重新排）。" else "打开上面的开关后按这个时间跑。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
                 Slider(
@@ -613,20 +613,20 @@ internal fun SelfStyleDetail(store: ConfigStore, glassAlpha: Float) {
                 if (skill.isBlank()) {
                     HintText(
                         "还没有生成过。攒够 ${StyleSkill.MIN_SAMPLES} 条样本之后，可以点下面手动生成一次（不用等到中午）。",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                         modifier = Modifier.padding(top = 10.dp),
                     )
                 } else {
                     Text(
                         "当前 skill（生成回复时会带上）",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                         modifier = Modifier.padding(top = 10.dp),
                     )
                     Text(
                         skill,
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.text,
                         modifier = Modifier
                             .padding(top = 4.dp)
@@ -637,7 +637,7 @@ internal fun SelfStyleDetail(store: ConfigStore, glassAlpha: Float) {
                     )
                 }
                 msg?.let {
-                    Text(it, fontSize = 13.sp, color = palette.primary, modifier = Modifier.padding(top = 8.dp))
+                    Text(it, fontSize = TextSize.body, color = palette.primary, modifier = Modifier.padding(top = 8.dp))
                 }
                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassPill(if (busy) "生成中…" else "立即生成", selected = false) {

@@ -59,14 +59,14 @@ internal fun DiagnosticEntryCard(
     onOpenDiag: () -> Unit,
 ) {
     GlassCard(d.glassAlpha) {
-        Text("诊断", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+        Text("诊断", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
         Text(
             "某个聊天页连按钮都不弹、或者「运行状态」报错的时候用这里：\n" +
                 "让微信进程抓一次当前界面、看它真正发出去的那次调用，再复制出来发我。",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.sub,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.md))
         Button(
             onClick = onOpenDiag,
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -103,7 +103,7 @@ internal fun GenerationParamsCard(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.md))
         GlassField(
             value = d.temperature.toString(),
             onValueChange = { onUpdate(d.copy(temperature = it.toDoubleOrNull() ?: d.temperature)) },
@@ -112,23 +112,23 @@ internal fun GenerationParamsCard(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.lg))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("微信内自动分析", fontSize = 15.sp, color = palette.text)
-                Text("关掉后只在手动点「识别」时出现卡片", fontSize = 13.sp, color = palette.sub)
+                Text("微信内自动分析", fontSize = TextSize.emphasis, color = palette.text)
+                Text("关掉后只在手动点「识别」时出现卡片", fontSize = TextSize.body, color = palette.sub)
             }
             Switch(checked = d.enabled, onCheckedChange = { onUpdate(d.copy(enabled = it)) })
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.sm))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("敏感内容检查", fontSize = 15.sp, color = palette.text)
-                Text("命中验证码/银行卡/转账时先拦一次（推荐开）", fontSize = 13.sp, color = palette.sub)
+                Text("敏感内容检查", fontSize = TextSize.emphasis, color = palette.text)
+                Text("命中验证码/银行卡/转账时先拦一次（推荐开）", fontSize = TextSize.body, color = palette.sub)
             }
             Switch(checked = !d.allowSensitive, onCheckedChange = { onUpdate(d.copy(allowSensitive = !it)) })
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(Space.xxl))
         // 这一页只有这一个保存按钮，而接口地址 / 生成模式 / 参考条数 / temperature 全是草稿 ——
         // 不点它就一概不生效。所以红字必须挨着它，别让人以为改完就已经算数了。
         if (dirty) {
@@ -136,7 +136,7 @@ internal fun GenerationParamsCard(
                 Text(
                     "未保存，你所做出的改动不会被保存",
                     modifier = Modifier.weight(1f),
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.bad,
                 )
                 Spacer(Modifier.width(10.dp))
@@ -168,8 +168,8 @@ internal fun ReplyStyleCard(
     saveScopedStyles: (String, List<String>) -> Unit,
 ) {
     GlassCard(d.glassAlpha) {
-        Text("回复风格（可多选）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-        Spacer(Modifier.height(8.dp))
+        Text("回复风格（可多选）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        Spacer(Modifier.height(Space.md))
 
         // ── 生效范围：下面这排药丸改的是谁 ────────────────────────────────────
         // 「按联系人单独设置」的入口就做在这里：不另开一块表单，而是**切换这排药丸的作用域** ——
@@ -186,8 +186,8 @@ internal fun ReplyStyleCard(
         if (scope.isNotBlank() && scope !in added) scope = ""
         val scoped = scope.isNotBlank()
 
-        Text("生效范围（这排药丸改的是谁）", fontSize = 13.sp, color = palette.sub)
-        Spacer(Modifier.height(4.dp))
+        Text("生效范围（这排药丸改的是谁）", fontSize = TextSize.body, color = palette.sub)
+        Spacer(Modifier.height(Space.xs))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             (listOf("") + added).chunked(3).forEach { rowNames ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -219,7 +219,7 @@ internal fun ReplyStyleCard(
         }
         val addShape = RoundedCornerShape(RadiusR2)
         val chipShape = RoundedCornerShape(RadiusR1)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.sm))
         if (!adding) {
             Row(
                 Modifier
@@ -234,10 +234,10 @@ internal fun ReplyStyleCard(
                 AddBadge()
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("添加联系人", fontSize = 13.sp, color = palette.text)
+                    Text("添加联系人", fontSize = TextSize.body, color = palette.text)
                     Text("没添加的人一律用「所有人」那套", fontSize = 11.sp, color = palette.sub)
                 }
-                Text("展开", fontSize = 12.sp, color = palette.sub)
+                Text("展开", fontSize = TextSize.small, color = palette.sub)
             }
         } else {
             Column(
@@ -254,7 +254,7 @@ internal fun ReplyStyleCard(
                     Column(Modifier.weight(1f)) {
                         Text(
                             "添加联系人",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             fontWeight = FontWeight.SemiBold,
                             color = palette.text,
                         )
@@ -263,13 +263,13 @@ internal fun ReplyStyleCard(
                     TextButton(
                         onClick = { adding = false },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    ) { Text("收起", fontSize = 12.sp, color = palette.sub) }
+                    ) { Text("收起", fontSize = TextSize.small, color = palette.sub) }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 if (addableCandidates.isEmpty()) {
                     Text(
                         "还没有可添加的会话名：在微信里打开几个聊天，名字会自己出现在这里。",
-                        fontSize = 12.sp,
+                        fontSize = TextSize.small,
                         color = palette.sub,
                     )
                 } else {
@@ -304,7 +304,7 @@ internal fun ReplyStyleCard(
                                     ) {
                                         Text(
                                             "＋ $name",
-                                            fontSize = 12.sp,
+                                            fontSize = TextSize.small,
                                             color = palette.primary,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -316,7 +316,7 @@ internal fun ReplyStyleCard(
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 Text(
                     "加进来之后 TA 先是跟「所有人」完全一样，改哪条才只对 TA 生效。",
                     fontSize = 11.sp,
@@ -326,12 +326,12 @@ internal fun ReplyStyleCard(
         }
 
         if (scoped) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             val scopedIds = d.chatStyles[scope].orEmpty()
             Text(
                 if (scopedIds.isEmpty()) "「$scope」已添加，现在跟着「所有人」走 —— 改一下就只对 TA 生效。"
                 else "「$scope」单独设过（${scopedIds.size} 条），下面勾的就是 TA 的。",
-                fontSize = 12.sp,
+                fontSize = TextSize.small,
                 color = palette.sub,
             )
             TextButton(
@@ -342,9 +342,9 @@ internal fun ReplyStyleCard(
                     saveChatStyles(d.chatStyles - gone)
                 },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) { Text("删掉 TA 的单独设置（回到所有人）", fontSize = 12.sp, color = palette.bad) }
+            ) { Text("删掉 TA 的单独设置（回到所有人）", fontSize = TextSize.small, color = palette.bad) }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.md))
 
         // 「当前会写」也跟着范围走 —— 否则选了某个人、底下那行还在报全局的条数
         val plan = if (scope.isBlank()) d.replyPlan else d.replyPlanFor(scope)
@@ -368,10 +368,10 @@ internal fun ReplyStyleCard(
         //（见 llm/plannedReplyCount）。顺序那个细节挪到卡片底部 —— 放在这儿要换两行。
         Text(
             "可多选（最多 $MAX_REPLIES 种）：勾几种就写几条",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.sub,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.sm))
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             REPLY_STYLES.chunked(4).forEach { rowStyles ->
                 Row(
@@ -401,13 +401,13 @@ internal fun ReplyStyleCard(
         // ── 自定义风格：自己敲一个风格名加进来 ──────────────────────────────────
         // 加进来的风格和内置 8 种**完全同等**（能勾选、能写进提示词、能参与补齐），
         // 不是「只给候选贴个标签」—— 所以它必须真的被算进 ReplyPlan，见 llm/ReplyPlan.kt。
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.lg))
         var newStyleName by remember { mutableStateOf("") }
         var newStyleHint by remember { mutableStateOf("") }
         var styleNote by remember { mutableStateOf("") }
 
-        Text("自定义风格（加完直接选中，和上面同等）", fontSize = 13.sp, color = palette.sub)
-        Spacer(Modifier.height(4.dp))
+        Text("自定义风格（加完直接选中，和上面同等）", fontSize = TextSize.body, color = palette.sub)
+        Spacer(Modifier.height(Space.xs))
 
         if (d.replyCustomStyles.isNotEmpty()) {
             // 已经加过的清单：行距压到 2dp（它们是列表项，不必每个都占满一行高度）
@@ -437,11 +437,11 @@ internal fun ReplyStyleCard(
                                 saveChatStyles(cleaned)
                             },
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        ) { Text("删除", fontSize = 12.sp, color = palette.bad) }
+                        ) { Text("删除", fontSize = TextSize.small, color = palette.bad) }
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
         }
 
         // 名字输入和按钮挤在**同一行**：以前是「两个输入框 + 一个整行按钮」三行，
@@ -453,7 +453,7 @@ internal fun ReplyStyleCard(
                 onValueChange = { if (it.length <= MAX_CUSTOM_LABEL_LEN) newStyleName = it },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                label = { Text("风格名（比如：撒娇）", fontSize = 12.sp) },
+                label = { Text("风格名（比如：撒娇）", fontSize = TextSize.small) },
             )
             Spacer(Modifier.width(6.dp))
             Button(
@@ -484,44 +484,44 @@ internal fun ReplyStyleCard(
                 contentPadding = PaddingValues(horizontal = 16.dp),
             ) { Text("添加风格") }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(Space.xs))
         GlassField(
             value = newStyleHint,
             onValueChange = { newStyleHint = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("说明（可选，给模型看：比如用撒娇的语气带点抱怨）", fontSize = 12.sp) },
+            label = { Text("说明（可选，给模型看：比如用撒娇的语气带点抱怨）", fontSize = TextSize.small) },
         )
         if (styleNote.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(styleNote, fontSize = 13.sp, color = palette.sub)
+            Spacer(Modifier.height(Space.xs))
+            Text(styleNote, fontSize = TextSize.body, color = palette.sub)
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.lg))
 
         HintText(
             (if (scoped) "「$scope」单独用：" else "") +
                 "当前会写：${plan.summary} —— 勾选顺序就是第 1/2/3 条的顺序。" +
                 "这段会写进提示词，让模型按你选的类型各写一条 —— " +
                 "所以「风格」不是给候选贴标签，是真的在要求模型换着写。",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.sub,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.sm))
         Text(
             "点一下就生效（立刻落盘，不用等页底那个「保存」）。勾得越多每条会被摊薄、越容易" +
                 "雷同，模型输出也更容易顶到长度上限（本模块会按条数把输出预算抬到够用）；" +
                 "2~6 条通常最实用。",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.ok,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(Space.sm))
         // 用户要求「提醒用户重启微信就好」，随后又把措辞改成**强行停止**：
         // 从最近任务里划掉往往杀不掉微信进程，只有系统的「强行停止」才真的把它按下去。
         // 卡片上只留这一句行动指引，不解释原理（原理写在 CHANGELOG 与项目笔记里）。
         Text(
             "⚠ 选完记得强行停止微信，再重新打开",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.warn,
         )
     }

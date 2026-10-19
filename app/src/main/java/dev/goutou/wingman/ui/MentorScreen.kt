@@ -99,11 +99,11 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Text(
                 if (!advanced) "用内置的原版狗头军师，提示词可以直接编辑微调。"
                 else "从内置 skill 里选一个，或者粘一个 GitHub 上开源 skill 的地址导入。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
         }
@@ -112,19 +112,19 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
             GlassCard(glassAlpha) {
                 Text(
                     if (text.contains("replies")) "✓ 含 JSON 输出契约 · ${text.length} 字" else "⚠ 缺少 JSON 契约，卡片会解析不了",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = if (text.contains("replies")) palette.ok else palette.warn,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = text,
                     onValueChange = { text = it },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.lg))
                 if (dirty) {
-                    Text("未保存，你所做出的改动不会被保存", fontSize = 13.sp, color = palette.bad)
-                    Spacer(Modifier.height(6.dp))
+                    Text("未保存，你所做出的改动不会被保存", fontSize = TextSize.body, color = palette.bad)
+                    Spacer(Modifier.height(Space.sm))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
@@ -150,14 +150,14 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(skillName(cfg.skillId), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                            Text(skillName(cfg.skillId), fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                             Spacer(Modifier.width(8.dp))
                             SourceChip(cfg.skillId)
                         }
                         Text(
                             "${text.length} 字 · " +
                                 if (text.contains("replies")) "含 JSON 契约" else "⚠ 缺少 JSON 契约",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = if (text.contains("replies")) palette.sub else palette.warn,
                         )
                     }
@@ -166,24 +166,24 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                     }
                     TextButton(onClick = { tweak = !tweak }) { Text(if (tweak) "收起" else "微调") }
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 // 这里只给「这是什么」；真要逐字看/改，点右上那个「微调」—— 那块才是编辑区。
                 HintText(
                     src?.summary ?: text.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty(),
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
                 if (tweak) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.md))
                     GlassField(
                         value = text,
                         onValueChange = { text = it },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(Space.lg))
                     if (dirty) {
-                        Text("未保存，你所做出的改动不会被保存", fontSize = 13.sp, color = palette.bad)
-                        Spacer(Modifier.height(6.dp))
+                        Text("未保存，你所做出的改动不会被保存", fontSize = TextSize.body, color = palette.bad)
+                        Spacer(Modifier.height(Space.sm))
                     }
                     Button(
                         onClick = {
@@ -209,8 +209,8 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                 glassAlpha = glassAlpha,
                 onToggle = { skillsOpen = !skillsOpen },
             ) {
-                Text("点一下直接启用（会替换当前提示词）", fontSize = 13.sp, color = palette.sub)
-                Spacer(Modifier.height(4.dp))
+                Text("点一下直接启用（会替换当前提示词）", fontSize = TextSize.body, color = palette.sub)
+                Spacer(Modifier.height(Space.xs))
                 BUILT_IN_SKILLS.forEach { skill ->
                     // 同上：比正文，不比整段 —— 否则改过条数后当前 skill 会被显示成「没选中」。
                     val selected = cfg.skillId == skill.id && coreOf(cfg.prompt) == coreOf(skill.prompt)
@@ -247,14 +247,14 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                             .padding(14.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(skill.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text, modifier = Modifier.weight(1f))
+                            Text(skill.name, fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text, modifier = Modifier.weight(1f))
                             Text(
                                 if (selected) "使用中" else "启用",
-                                fontSize = 13.sp,
+                                fontSize = TextSize.body,
                                 color = if (selected) palette.ok else palette.primary,
                             )
                         }
-                        Text(skill.summary, fontSize = 13.sp, color = palette.sub)
+                        Text(skill.summary, fontSize = TextSize.body, color = palette.sub)
                     }
                 }
             }
@@ -268,10 +268,10 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
             ) {
                 HintText(
                     "粘 SKILL.md 的地址即可（网页地址也行，会自动换成 raw 直链）。导入时会自动补齐 JSON 输出契约。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = url,
                     onValueChange = { url = it },
@@ -279,7 +279,7 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                     label = { Text("https://github.com/…/SKILL.md") },
                     singleLine = true,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 Button(
                     onClick = {
                         importing = true
@@ -304,8 +304,8 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
                 ) { Text(if (importing) "导入中…" else "导入并启用") }
                 note?.let {
-                    Spacer(Modifier.height(6.dp))
-                    Text(it, fontSize = 13.sp, color = if (it.startsWith("导入成功")) palette.ok else palette.bad)
+                    Spacer(Modifier.height(Space.sm))
+                    Text(it, fontSize = TextSize.body, color = if (it.startsWith("导入成功")) palette.ok else palette.bad)
                 }
             }
         }

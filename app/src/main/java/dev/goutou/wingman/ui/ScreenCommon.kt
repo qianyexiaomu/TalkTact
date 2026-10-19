@@ -110,8 +110,8 @@ internal fun FoldCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-                Text(summary, fontSize = 13.sp, color = palette.sub)
+                Text(title, fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text(summary, fontSize = TextSize.body, color = palette.sub)
             }
             Icon(
                 Icons.Filled.ExpandMore,
@@ -178,10 +178,10 @@ internal fun NetRow(label: String, value: String?, hint: String? = null) {
     val palette = LocalPalette.current
     val missing = value.isNullOrBlank()
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 13.sp, color = palette.sub, modifier = Modifier.width(76.dp))
+        Text(label, fontSize = TextSize.body, color = palette.sub, modifier = Modifier.width(76.dp))
         Column(Modifier.weight(1f)) {
-            Text(value ?: "null", fontSize = 13.sp, color = if (missing) palette.warn else palette.text)
-            if (!hint.isNullOrBlank()) Text(hint, fontSize = 10.sp, color = palette.sub)
+            Text(value ?: "null", fontSize = TextSize.body, color = if (missing) palette.warn else palette.text)
+            if (!hint.isNullOrBlank()) Text(hint, fontSize = TextSize.caption, color = palette.sub)
         }
     }
 }
@@ -198,7 +198,7 @@ internal fun HeaderButton(text: String, onClick: () -> Unit) {
         modifier = Modifier.height(36.dp),
         shape = RoundedCornerShape(RadiusR1),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-    ) { Text(text, fontSize = 13.sp, color = palette.primary) }
+    ) { Text(text, fontSize = TextSize.body, color = palette.primary) }
 }
 
 @Composable
@@ -218,10 +218,10 @@ internal fun CheckRow(check: Check, glassAlpha: Float) {
             // 批 4c：状态点统一 8dp（原来 10dp / 8dp 各写各的）
             StatusDot(color)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(check.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-                Text(check.desc, fontSize = 13.sp, color = palette.sub)
+                Text(check.title, fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text(check.desc, fontSize = TextSize.body, color = palette.sub)
             }
-            Text(check.level.label, fontSize = 13.sp, color = levelText(palette, check.level), fontWeight = FontWeight.Medium)
+            Text(check.level.label, fontSize = TextSize.body, color = levelText(palette, check.level), fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -251,8 +251,8 @@ internal fun DetailToggle(
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("详细状态", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-                Text(summary, fontSize = 13.sp, color = palette.sub)
+                Text("详细状态", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text(summary, fontSize = TextSize.body, color = palette.sub)
             }
             Icon(
                 Icons.Filled.ExpandMore,
@@ -289,7 +289,7 @@ internal fun AddBadge() {
             .background(palette.primary.copy(alpha = 0.16f)),
         contentAlignment = Alignment.Center,
     ) {
-        Text("＋", fontSize = 12.sp, color = palette.primary, fontWeight = FontWeight.SemiBold)
+        Text("＋", fontSize = TextSize.small, color = palette.primary, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -299,7 +299,7 @@ internal fun GroupTitle(text: String) {
     Text(
         text,
         modifier = Modifier.padding(start = 18.dp, top = 18.dp, bottom = 3.dp),
-        fontSize = 13.sp,
+        fontSize = TextSize.body,
         fontWeight = FontWeight.Medium,
         color = palette.sub.copy(alpha = 0.75f),
         letterSpacing = 0.8.sp,
@@ -400,11 +400,11 @@ fun WhiteCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.()
 @Composable
 fun NoticeBanner(title: String, lines: List<String>) {
     WhiteCard {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1C1B22))
+        Text(title, fontSize = TextSize.body, fontWeight = FontWeight.Medium, color = Color(0xFF1C1B22))
         lines.forEach { line ->
             Text(
                 line,
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = Color(0xFF55525E),
                 modifier = Modifier.padding(top = 3.dp),
             )
@@ -449,14 +449,14 @@ internal fun PickRow(
         }
         Text(
             label,
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.text,
             modifier = Modifier.weight(1f),
         )
         if (!picking) {
             Text(
                 actionLabel,
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = actionColor,
                 modifier = Modifier
                     .clip(RoundedCornerShape(RadiusR1))
@@ -480,12 +480,12 @@ internal fun PickBar(
     onSelectAll: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    Text("已选 $count / $total（长按进入多选，点一下勾选）", fontSize = 13.sp, color = palette.text)
-    Spacer(Modifier.height(4.dp))
+    Text("已选 $count / $total（长按进入多选，点一下勾选）", fontSize = TextSize.body, color = palette.text)
+    Spacer(Modifier.height(Space.xs))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             if (total > 0 && count >= total) "取消全选" else "全选",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.primary,
             modifier = Modifier
                 .clip(RoundedCornerShape(RadiusR1))
@@ -494,7 +494,7 @@ internal fun PickBar(
         )
         Text(
             "退出多选",
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = palette.sub,
             modifier = Modifier
                 .clip(RoundedCornerShape(RadiusR1))
@@ -502,7 +502,7 @@ internal fun PickBar(
                 .padding(horizontal = 6.dp, vertical = 4.dp),
         )
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(Space.xs))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Button(
             onClick = onPrimary,
@@ -510,13 +510,13 @@ internal fun PickBar(
             modifier = Modifier.weight(1f).height(42.dp),
             shape = RoundedCornerShape(RadiusR2),
             colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
-        ) { Text(primaryLabel, fontSize = 13.sp) }
+        ) { Text(primaryLabel, fontSize = TextSize.body) }
         OutlinedButton(
             onClick = onDanger,
             enabled = count > 0,
             modifier = Modifier.weight(1f).height(42.dp),
             shape = RoundedCornerShape(RadiusR2),
-        ) { Text(dangerLabel, fontSize = 13.sp, color = palette.bad) }
+        ) { Text(dangerLabel, fontSize = TextSize.body, color = palette.bad) }
     }
 }
 

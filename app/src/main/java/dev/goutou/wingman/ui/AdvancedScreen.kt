@@ -394,7 +394,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
         if (dirty) {
             Text(
                 "⚠ 本页有未保存的改动（白名单 / 识图 / 生成模式是改完立刻生效，其余要按页底那个「保存」）",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.bad,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp),
             )
@@ -419,24 +419,24 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     add("换接口或换模型都会让它变；回首页点「接口自检」重新测一次。")
                 },
             )
-            Spacer(Modifier.height(10.dp))
-            Text("接口地址", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.lg))
+            Text("接口地址", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Spacer(Modifier.height(Space.md))
 
             // 服务商预设：**只省掉「去官网查地址」这一步**。选中后地址 / 模型照样能手改，
             // 也不改变任何请求逻辑 —— 我们本来就是「OpenAI 兼容 + 自定义 base_url + 自定义 model」。
             val chosenPreset = presetOf(d.provider)
             var providerOpen by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("服务商", fontSize = 13.sp, color = palette.sub, modifier = Modifier.weight(1f))
+                Text("服务商", fontSize = TextSize.body, color = palette.sub, modifier = Modifier.weight(1f))
                 Box {
                     OutlinedButton(
                         onClick = { providerOpen = true },
                         shape = RoundedCornerShape(RadiusR1),
-                    ) { Text(chosenPreset?.label ?: "自定义（自己填）", fontSize = 13.sp) }
+                    ) { Text(chosenPreset?.label ?: "自定义（自己填）", fontSize = TextSize.body) }
                     DropdownMenu(expanded = providerOpen, onDismissRequest = { providerOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("自定义（自己填）", fontSize = 13.sp) },
+                            text = { Text("自定义（自己填）", fontSize = TextSize.body) },
                             onClick = {
                                 providerOpen = false
                                 update(d.copy(provider = ""))
@@ -444,7 +444,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         )
                         PROVIDER_PRESETS.forEach { p ->
                             DropdownMenuItem(
-                                text = { Text(p.label, fontSize = 13.sp) },
+                                text = { Text(p.label, fontSize = TextSize.body) },
                                 onClick = {
                                     providerOpen = false
                                     // 选预设 = 把「地址 / 形态 / 模型（有才填）」写进草稿，仍然可改
@@ -463,25 +463,25 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 }
             }
             chosenPreset?.note?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, fontSize = 13.sp, color = palette.sub)
+                Spacer(Modifier.height(Space.xs))
+                Text(it, fontSize = TextSize.body, color = palette.sub)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
 
             // 接口形态：差异只有 URL 路径 / 请求体 / 鉴权头三处（见 llm/ApiShape.kt）。
             val shapeNow = shapeOf(d.apiShape)
             var shapeOpen by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("接口形态", fontSize = 13.sp, color = palette.sub, modifier = Modifier.weight(1f))
+                Text("接口形态", fontSize = TextSize.body, color = palette.sub, modifier = Modifier.weight(1f))
                 Box {
                     OutlinedButton(
                         onClick = { shapeOpen = true },
                         shape = RoundedCornerShape(RadiusR1),
-                    ) { Text(shapeNow.label, fontSize = 13.sp) }
+                    ) { Text(shapeNow.label, fontSize = TextSize.body) }
                     DropdownMenu(expanded = shapeOpen, onDismissRequest = { shapeOpen = false }) {
                         ApiShape.values().forEach { s ->
                             DropdownMenuItem(
-                                text = { Text(s.label, fontSize = 13.sp) },
+                                text = { Text(s.label, fontSize = TextSize.body) },
                                 onClick = {
                                     shapeOpen = false
                                     update(d.copy(apiShape = s.id))
@@ -491,18 +491,18 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     }
                 }
             }
-            Text(shapeNow.note, fontSize = 13.sp, color = palette.sub)
+            Text(shapeNow.note, fontSize = TextSize.body, color = palette.sub)
             if (d.proxyEnabled && !shapeNow.usableThroughProxy) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "⚠ 本地代理只转发 OpenAI 兼容形态：「${shapeNow.label}」请直连 —— " +
                         "到下面把「本地代理」关掉，或者把形态换回 OpenAI 兼容。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.warn,
                 )
             }
             if (shapeNow == ApiShape.CUSTOM) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = d.customPath,
                     onValueChange = { update(d.copy(customPath = it)) },
@@ -511,7 +511,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     singleLine = true,
                 )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
 
             GlassField(
                 value = d.baseUrl,
@@ -520,7 +520,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 label = { Text("接口地址（OpenAI 兼容，写到 /v1）") },
                 singleLine = true,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             GlassField(
                 value = d.apiKey,
                 onValueChange = { update(d.copy(apiKey = it)) },
@@ -529,7 +529,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             GlassField(
                 value = d.model,
                 onValueChange = { update(d.copy(model = it)) },
@@ -537,7 +537,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 label = { Text("模型") },
                 singleLine = true,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(
                     onClick = { pullModels(second = false) },
@@ -554,7 +554,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         DropdownMenu(expanded = modelsOpen, onDismissRequest = { modelsOpen = false }) {
                             orderedModels(models).take(80).forEach { id ->
                                 DropdownMenuItem(
-                                    text = { Text(id, fontSize = 13.sp) },
+                                    text = { Text(id, fontSize = TextSize.body) },
                                     onClick = {
                                         update(d.copy(model = id))
                                         modelsOpen = false
@@ -566,70 +566,70 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 }
             }
             modelsNote?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, fontSize = 13.sp, color = if (it.startsWith("拉取失败")) palette.bad else palette.ok)
+                Spacer(Modifier.height(Space.xs))
+                Text(it, fontSize = TextSize.body, color = if (it.startsWith("拉取失败")) palette.bad else palette.ok)
             }
             if (modelsAt > 0L) {
                 Spacer(Modifier.height(2.dp))
-                Text("上次拉取 ${formatTime(modelsAt)}（存在本机；换了接口 / Key 记得重新拉一次）", fontSize = 10.sp, color = palette.sub)
+                Text("上次拉取 ${formatTime(modelsAt)}（存在本机；换了接口 / Key 记得重新拉一次）", fontSize = TextSize.caption, color = palette.sub)
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             HintText(
                 "拉不到不代表接口不能用：有的服务商没这个接口，有的中转只回一份目录（列出来 ≠ 你的 Key 能用）。手动填一样用。",
-                fontSize = 10.sp,
+                fontSize = TextSize.caption,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Space.xl))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("严格 JSON 输出", fontSize = 15.sp, color = palette.text)
+                    Text("严格 JSON 输出", fontSize = TextSize.emphasis, color = palette.text)
                     HintText(
                         "请求里带 response_format=json_object，让服务端保证回的是合法 JSON，" +
                             "能少一些「模型没返回 JSON」。有些中转不支持 —— 开了报错就关掉。" +
                             "只影响生成候选，不影响单条改写和风格提炼。",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
                 Switch(checked = d.jsonMode, onCheckedChange = { update(d.copy(jsonMode = it)) })
             }
-            Spacer(Modifier.height(12.dp))
-            Text("单次回复的 token 上限", fontSize = 13.sp, color = palette.sub)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.xl))
+            Text("单次回复的 token 上限", fontSize = TextSize.body, color = palette.sub)
+            Spacer(Modifier.height(Space.sm))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 GlassPill("200", d.maxTokens == 200, Modifier.weight(1f)) { update(d.copy(maxTokens = 200)) }
                 GlassPill("400", d.maxTokens == 400, Modifier.weight(1f)) { update(d.copy(maxTokens = 400)) }
                 GlassPill("600", d.maxTokens == 600, Modifier.weight(1f)) { update(d.copy(maxTokens = 600)) }
                 GlassPill("无限制", d.maxTokens == 0, Modifier.weight(1f)) { update(d.copy(maxTokens = 0)) }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Text(
                 if (d.maxTokens == 0) "无限制：请求里不带 max_tokens，由服务端决定（进阶 skill 建议用这档）"
                 else "越小越省额度，但 skill 提示词较长时可能被截断",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
         }
 
         GlassCard(d.glassAlpha) {
-            Text("本地代理（API Key 不出本应用）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("本地代理（API Key 不出本应用）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             Text(
                 "开启后：聊天内容先送到本机的 127.0.0.1，由这个 App 带上 Key 去调你的接口。\n" +
                     "注入到微信里的那段代码从此**拿不到 Key** —— 做法不是加密，是根本不给它。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("启用本地代理", fontSize = 15.sp, color = palette.text)
+                    Text("启用本地代理", fontSize = TextSize.emphasis, color = palette.text)
                     Text(
                         if (d.proxyEnabled) {
                             "已开：App 需要保持运行（前台服务 + 一条常驻通知）"
                         } else {
                             "关着：走直连（Key 明文存在本机，并且会推给微信进程）"
                         },
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
@@ -659,7 +659,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 )
             }
             if (d.proxyEnabled) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 // 状态行直接读进程内的 ProxyState：服务到底起没起来、为什么没起来，一眼可见
                 Text(
                     when {
@@ -669,7 +669,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         ProxyState.lastError != null -> "● 服务没起来：${ProxyState.lastError}"
                         else -> "● 服务没起来（点上面的开关关掉再开一次；若仍不行点「测试代理」看详情）"
                     },
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = if (ProxyState.running) palette.ok else palette.bad,
                 )
                 // 活体诊断（issue #7①）：光说「服务在跑」不够 —— 得能分辨「一直好好跑着」
@@ -692,10 +692,10 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                                 append("\n● 被系统重启过 ").append(ProxyState.restarts).append(" 次（进程被杀过）")
                             }
                         },
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = if (ProxyState.foreground) palette.sub else palette.warn,
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.sm))
                     OutlinedButton(onClick = { openBatteryWhitelist(context) }) {
                         Text("加电池优化白名单")
                     }
@@ -707,20 +707,20 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         "微信侧最近一次走的是：" + (if (ok) "本地代理 ✅" else "直连（代理还没被用上）") +
                             " · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
                                 .format(java.util.Date(lastRouteAt)),
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = if (ok) palette.ok else palette.warn,
                     )
                 } else {
-                    Text("微信侧还没回传过路线 —— 到微信里点一次「↻ 重新识别」就会有了", fontSize = 13.sp, color = palette.sub)
+                    Text("微信侧还没回传过路线 —— 到微信里点一次「↻ 重新识别」就会有了", fontSize = TextSize.body, color = palette.sub)
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "提示：识别结果**有缓存**（同一条消息不会重复调接口）。开了代理之后，" +
                         "要对**新消息**点一次「↻ 重新识别」才会真正走代理。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = d.proxyPort.toString(),
                     onValueChange = { update(d.copy(proxyPort = it.toIntOrNull() ?: d.proxyPort)) },
@@ -729,7 +729,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = {
@@ -770,41 +770,41 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         shape = RoundedCornerShape(RadiusR2),
                     ) { Text("换新 token") }
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 Text(
                     "⚠ 微信进程对 http 明文的策略不归我们管：如果开了之后微信里识别一直失败，" +
                         "把这里关掉就退回直连（注入侧给的报错里也会这么提示）。\n" +
                         "重启手机 / 覆盖安装之后代理会自己回来（不必再开一次 App）；" +
                         "微信侧连不上时它还会把 App 叫醒一次 —— 这两件事有没有真的发生，" +
                         "看上面那行的「已运行」和「最近被请求」。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.warn,
                 )
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 HintText(
                     "如果状态行显示「服务在跑」但过一会儿就没了：这个应用需要常驻，请把它加入系统的" +
                         "「电池优化白名单 / 允许后台运行」（各家名字不同：华为「应用启动管理」、小米「省电策略·无限制」、" +
                         "OPPO / vivo 类似）。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
             proxyNote?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, fontSize = 13.sp, color = palette.sub)
+                Spacer(Modifier.height(Space.sm))
+                Text(it, fontSize = TextSize.body, color = palette.sub)
             }
         }
 
         GroupTitle("生成")
 
         GlassCard(d.glassAlpha) {
-            Text("生成模式", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-            Spacer(Modifier.height(8.dp))
+            Text("生成模式", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Spacer(Modifier.height(Space.md))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 GlassPill("直通（一套接口）", !d.graded, Modifier.weight(1f)) { saveGraded(false) }
                 GlassPill("模型分级", d.graded, Modifier.weight(1f)) { saveGraded(true) }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             HintText(
                 if (!d.graded) {
                     "直通：所有事都交给一套接口 + 一份提示词，一次调用搞定（默认，和以前一样）。"
@@ -812,19 +812,19 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     "分级：拆成两路**并行**跑 —— 一路只判意图与风险，另一路只写 3 条回复，最后合成一张卡片。" +
                         "任一路挂了另一路照常显示（风险会标成「未评估」）。"
                 },
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Text(
                 "这两个 pill 点一下就生效（立刻落盘，不用等页底那个「保存」）；下面的接口地址仍然是草稿。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.ok,
             )
             if (d.graded) {
-                Spacer(Modifier.height(10.dp))
-                Text("第二套接口（只给「风险评估」那一路用）", fontSize = 13.sp, color = palette.sub)
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.lg))
+                Text("第二套接口（只给「风险评估」那一路用）", fontSize = TextSize.body, color = palette.sub)
+                Spacer(Modifier.height(Space.sm))
                 GlassField(
                     value = d.baseUrl2,
                     onValueChange = { update(d.copy(baseUrl2 = it)) },
@@ -832,7 +832,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     label = { Text("接口地址（留空 = 复用上面那套）") },
                     singleLine = true,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = d.apiKey2,
                     onValueChange = { update(d.copy(apiKey2 = it)) },
@@ -841,7 +841,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = d.model2,
                     onValueChange = { update(d.copy(model2 = it)) },
@@ -849,7 +849,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     label = { Text("模型（留空 = 复用）") },
                     singleLine = true,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(
                         onClick = { pullModels(second = true) },
@@ -866,7 +866,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                             DropdownMenu(expanded = models2Open, onDismissRequest = { models2Open = false }) {
                                 orderedModels(models2).take(80).forEach { id ->
                                     DropdownMenuItem(
-                                        text = { Text(id, fontSize = 13.sp) },
+                                        text = { Text(id, fontSize = TextSize.body) },
                                         onClick = {
                                             update(d.copy(model2 = id))
                                             models2Open = false
@@ -878,35 +878,35 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     }
                 }
                 modelsNote2?.let {
-                    Spacer(Modifier.height(4.dp))
-                    Text(it, fontSize = 13.sp, color = if (it.startsWith("拉取失败")) palette.bad else palette.ok)
+                    Spacer(Modifier.height(Space.xs))
+                    Text(it, fontSize = TextSize.body, color = if (it.startsWith("拉取失败")) palette.bad else palette.ok)
                 }
                 if (models2At > 0L) {
                     Spacer(Modifier.height(2.dp))
-                    Text("上次拉取 ${formatTime(models2At)}（存在本机）", fontSize = 10.sp, color = palette.sub)
+                    Text("上次拉取 ${formatTime(models2At)}（存在本机）", fontSize = TextSize.caption, color = palette.sub)
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 Text(
                     "拉取用的是第二套自己的地址 / Key；这两格也留空的话，就跟第一套一模一样。",
-                    fontSize = 10.sp,
+                    fontSize = TextSize.caption,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassPill("同上（三格都清空 = 复用第一套）", false, Modifier.fillMaxWidth()) {
                     update(d.copy(baseUrl2 = "", apiKey2 = "", model2 = ""))
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 Text(
                     "留空就复用第一套 —— 那等于「同一个模型拆两路提示词」，也完全能用。" +
                         "想省钱可以给风险那一路单独配个便宜的小模型（比如轻量档）。" +
                         "第二套不参与首页的「接口自检」，配错了会在卡片上直接写出来。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(Space.lg))
 
         ReplyStyleCard(
             d = d,
@@ -920,26 +920,26 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
         GroupTitle("识别")
 
         GlassCard(d.glassAlpha) {
-            Text("图片文字识别（OCR）", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("图片文字识别（OCR）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             Text(
                 "聊天里的图片会先在这台手机上认成文字，再和别的消息一起交给模型 —— " +
                     "截图、长图里的话也能被读懂。\n" +
                     "认字完全离线：内置的中文模型，不联网、不下载、不需要 Play 服务，图片也不会上传" +
                     "（只在本机两个进程之间走一趟）。代价是这个安装包大了十几 MB。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("识别聊天里的图片", fontSize = 15.sp, color = palette.text)
+                    Text("识别聊天里的图片", fontSize = TextSize.emphasis, color = palette.text)
                     Text(
                         if (d.ocrEnabled) {
                             "开着：每轮分析前，屏幕上的图会先认一遍字"
                         } else {
                             "关着：图片还是老样子 —— 用 [图片/表情/语音] 占位"
                         },
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
@@ -952,25 +952,25 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 )
             }
             if (d.ocrEnabled && !d.proxyEnabled) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 Text(
                     "⚠ 还差一步：认字这件事在 App 进程里做，所以得先把上面那张卡的「本地代理」打开 —— " +
                         "否则微信那边连不上本机端口，会直接跳过（图片仍是占位）。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.warn,
                 )
             }
             if (d.ocrEnabled) {
-                Spacer(Modifier.height(10.dp))
-                Text("图片怎么交给模型", fontSize = 15.sp, color = palette.text)
+                Spacer(Modifier.height(Space.lg))
+                Text("图片怎么交给模型", fontSize = TextSize.emphasis, color = palette.text)
                 Text(
                     "「只认字」是默认：图片只在本机认成文字，不进任何请求，图不出手机。\n" +
                         "后两档会把**图片本体**一起发给你配置的那个接口 —— 换来的是「字认不出来 / " +
                         "表情包」这类内容也能被看懂。发出去的图是压缩过的 JPEG（最长边 1280）。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     GlassPill("只认字", d.imageMode == IMAGE_MODE_OCR, Modifier.weight(1f)) {
                         saveImageMode(IMAGE_MODE_OCR)
@@ -982,7 +982,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         saveImageMode(IMAGE_MODE_VISION)
                     }
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 Text(
                     when (d.imageMode) {
                         IMAGE_MODE_VISION ->
@@ -993,15 +993,15 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         else ->
                             "只认字：图片不出手机。代价是字太小的缩略图认不出来，表情包也始终是个占位。"
                     },
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = if (d.imageMode == IMAGE_MODE_OCR) palette.sub else palette.warn,
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            Text("最近一次：$ocrStatus", fontSize = 13.sp, color = palette.sub)
+            Spacer(Modifier.height(Space.md))
+            Text("最近一次：$ocrStatus", fontSize = TextSize.body, color = palette.sub)
             ocrNote?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, fontSize = 13.sp, color = palette.ok)
+                Spacer(Modifier.height(Space.xs))
+                Text(it, fontSize = TextSize.body, color = palette.ok)
             }
         }
 
@@ -1010,11 +1010,11 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
         GenerationParamsCard(d, dirty, palette, onUpdate = { update(it) }, onSave = { saveAll() })
 
         GlassCard(d.glassAlpha) {
-            Text("会话白名单", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("会话白名单", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             // 白底说明卡放最上面：这一页最容易踩的坑（名字对不上、开关开着名单空着）先说清楚。
             // 白卡和玻璃卡刻意不同 —— 玻璃是界面的一部分，白卡是「贴上去的说明书」。
             WhiteCard {
-                Text("怎么用", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1C1B22))
+                Text("怎么用", fontSize = TextSize.body, fontWeight = FontWeight.Medium, color = Color(0xFF1C1B22))
                 listOf(
                     "打开开关后，只有名单里的聊天会触发小助手；不在名单里的，不读内容、不记角色、也不调接口。",
                     "加名字三种办法：① 下面的输入框手打；② 点「拉取会话列表」，回微信的首页 / 通讯录停两秒；" +
@@ -1023,13 +1023,13 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 ).forEach { line ->
                     Text(
                         "· $line",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = Color(0xFF55525E),
                         modifier = Modifier.padding(top = 3.dp),
                     )
                 }
-                Spacer(Modifier.height(6.dp))
-                Text("⚠ 注意事项", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFB3261E))
+                Spacer(Modifier.height(Space.sm))
+                Text("⚠ 注意事项", fontSize = TextSize.body, fontWeight = FontWeight.Medium, color = Color(0xFFB3261E))
                 listOf(
                     "名字要和微信里显示的一致：群聊填群名；改过备注 / 昵称的，用改过之后的名字。",
                     "认不出会话名的聊天按「没勾」处理 —— 宁可不动，也不误发。",
@@ -1041,23 +1041,23 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 ).forEach { line ->
                     Text(
                         "· $line",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = Color(0xFF55525E),
                         modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("只对白名单里的聊天生效", fontSize = 15.sp, color = palette.text)
+                    Text("只对白名单里的聊天生效", fontSize = TextSize.emphasis, color = palette.text)
                     Text(
                         if (d.whitelistEnabled) {
                             "已开：只有下面 ${d.whitelist.size} 个会话会工作"
                         } else {
                             "关着：所有聊天都会分析（默认）"
                         },
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
@@ -1075,7 +1075,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 )
             }
             if (d.whitelistEnabled) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassField(
                         value = newChat,
@@ -1098,14 +1098,14 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     ) { Text("添加") }
                 }
                 if (d.whitelist.isEmpty()) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.sm))
                     Text(
                         "还是空的 —— 开着白名单却一条都没加，等于所有聊天都不工作。",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.warn,
                     )
                 } else {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.sm))
                     val whiteList = d.whitelist.sorted()
                 if (whitePicking) {
                     PickBar(
@@ -1138,7 +1138,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                             whitePicking = false
                         },
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.sm))
                 }
                 whiteList.forEach { name ->
                     PickRow(
@@ -1161,26 +1161,26 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                         },
                     )
                 }
-                Text("长按任意一项可多选，然后一次移出 / 删除。", fontSize = 13.sp, color = palette.sub)
+                Text("长按任意一项可多选，然后一次移出 / 删除。", fontSize = TextSize.body, color = palette.sub)
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(Space.sm))
                 HintText(
                     "名字要和微信里显示的一致（群聊填群名；改过备注的用改过的名字）；懒得敲字就用下面的「拉取会话列表」。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
-            Text("从微信里列出来", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = palette.text)
+            Spacer(Modifier.height(Space.xl))
+            Text("从微信里列出来", fontSize = TextSize.body, fontWeight = FontWeight.Medium, color = palette.text)
             HintText(
                 "点一下，然后回微信的首页或通讯录停两秒（滚一下能多收几个），再回来打开下面的「拉取到的联系人」去挑。\n" +
                     "白名单开着的时候，你打开过的那个聊天也会自己进来（认的是聊天页顶上那个名字，也就是备注）。\n" +
                     "⚠ 个人资料页不是来源 —— 那一页只有「微信号 / 地区」这种字段，读出来全是杂项，别在那里等。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {
@@ -1191,10 +1191,10 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     shape = RoundedCornerShape(RadiusR2),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
                 ) { Text("拉取会话列表") }
-                Text(pullInfo, fontSize = 13.sp, color = palette.sub, modifier = Modifier.weight(1f))
+                Text(pullInfo, fontSize = TextSize.body, color = palette.sub, modifier = Modifier.weight(1f))
             }
             val todo = cands.filter { it !in d.whitelist }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
             // 名单本身搬到二级页了：拉到几十个名字时铺在卡里会把整页撑得很长，也没法搜。
             // 这里只留一个入口 + 数量。
             Row(
@@ -1214,24 +1214,24 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                             todo.isEmpty() -> "拉回来的都加进去了 · 点开可以搜、也可以移出"
                             else -> "还没加进去的 ${todo.size} 个 · 点开可以搜索、批量加入"
                         },
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
-                Text("查看 ›", fontSize = 13.sp, color = palette.primary)
+                Text("查看 ›", fontSize = TextSize.body, color = palette.primary)
             }
             if (ignoredCount > 0) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(Space.xs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "已忽略 $ignoredCount 个（删掉的杂项）",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                         modifier = Modifier.weight(1f),
                     )
                     Text(
                         "恢复",
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.primary,
                         modifier = Modifier
                             .clip(RoundedCornerShape(RadiusR1))
@@ -1245,30 +1245,30 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 }
             }
             whitelistNote?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, fontSize = 13.sp, color = palette.ok)
+                Spacer(Modifier.height(Space.sm))
+                Text(it, fontSize = TextSize.body, color = palette.ok)
             }
         }
 
         GroupTitle("维护与排障")
 
         GlassCard(d.glassAlpha) {
-            Text("备份 / 迁移", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+            Text("备份 / 迁移", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
             Text(
                 "换包名、换手机的时候用：导出成一个 json 文件，装好新的再导入回来。\n" +
                     "导入是合并：角色只覆盖同名的，备份里没有的会保留。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("导出时包含 API Key", fontSize = 13.sp, color = palette.text)
-                    Text("开了的话导出文件里有明文 Key，别往公开地方放", fontSize = 13.sp, color = palette.sub)
+                    Text("导出时包含 API Key", fontSize = TextSize.body, color = palette.text)
+                    Text("开了的话导出文件里有明文 Key，别往公开地方放", fontSize = TextSize.body, color = palette.sub)
                 }
                 Switch(checked = includeKey, onCheckedChange = { includeKey = it })
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Space.sm))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = { exportLauncher.launch(Backup.FILE_NAME) },
@@ -1283,25 +1283,25 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 ) { Text("导入配置") }
             }
             backupNote?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, fontSize = 13.sp, color = if (it.startsWith("已")) palette.ok else palette.bad)
+                Spacer(Modifier.height(Space.sm))
+                Text(it, fontSize = TextSize.body, color = if (it.startsWith("已")) palette.ok else palette.bad)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
             OutlinedButton(
                 onClick = { diagLauncher.launch("TalkTact-诊断包.zip") },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(RadiusR2),
             ) { Text("导出诊断包（.zip）") }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Space.xs))
             HintText(
                 "出问题时用它：环境 / 配置（不含 Key）/ 角色条数 / 抓到的界面结构 / 最近一次调用。\n" +
                     "⚠️ 里面有你和对方的聊天内容，发出去之前先自己看一眼。",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
             )
             diagNote?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, fontSize = 13.sp, color = if (it.startsWith("已")) palette.ok else palette.bad)
+                Spacer(Modifier.height(Space.sm))
+                Text(it, fontSize = TextSize.body, color = if (it.startsWith("已")) palette.ok else palette.bad)
             }
         }
 

@@ -72,10 +72,10 @@ fun TrialScreen(store: ConfigStore, glassAlpha: Float) {
                 label = { Text("每行一句，以「我:」或「对方:」开头") },
             )
             if (hits.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Text("⚠ 含敏感内容：${hits.joinToString("、")}（微信里会先问你一次）", fontSize = 13.sp, color = palette.warn)
+                Spacer(Modifier.height(Space.md))
+                Text("⚠ 含敏感内容：${hits.joinToString("、")}（微信里会先问你一次）", fontSize = TextSize.body, color = palette.warn)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.lg))
             Button(
                 onClick = {
                     loading = true
@@ -125,25 +125,25 @@ fun TrialScreen(store: ConfigStore, glassAlpha: Float) {
                 colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
             ) { Text(if (loading) "思考中…" else "生成候选回复") }
         }
-        error?.let { msg ->             GlassCard(glassAlpha, border = palette.badMark.copy(alpha = CardBorderAlpha)) { Text(msg, color = palette.bad, fontSize = 13.sp) } }
-        info?.let { GlassCard(glassAlpha) { Text(it, fontSize = 13.sp, color = palette.sub) } }
+        error?.let { msg ->             GlassCard(glassAlpha, border = palette.badMark.copy(alpha = CardBorderAlpha)) { Text(msg, color = palette.bad, fontSize = TextSize.body) } }
+        info?.let { GlassCard(glassAlpha) { Text(it, fontSize = TextSize.body, color = palette.sub) } }
         suggestion?.let { s ->
             GlassCard(glassAlpha) {
-                Text("意图：${s.intent}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = palette.text)
-                Text("风险：${s.risk}　${s.note}", fontSize = 13.sp, color = palette.sub)
-                Text("AI 生成 · 发送前请自行判断", fontSize = 13.sp, color = palette.sub)
+                Text("意图：${s.intent}", fontSize = TextSize.emphasis, fontWeight = FontWeight.Bold, color = palette.text)
+                Text("风险：${s.risk}　${s.note}", fontSize = TextSize.body, color = palette.sub)
+                Text("AI 生成 · 发送前请自行判断", fontSize = TextSize.body, color = palette.sub)
             }
             if (s.partial) {
                 Text(
                     "⚠ 模型输出被截断，这条是从残缺 JSON 里抢救出来的，建议重新生成",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.warn,
                 )
             }
             // 分级模式：哪一路挂了/没拿到回复，直接写出来，别让人对着空卡片猜
-            s.warnings.forEach { w -> Text(w, fontSize = 13.sp, color = palette.warn) }
+            s.warnings.forEach { w -> Text(w, fontSize = TextSize.body, color = palette.warn) }
             if (s.replies.isEmpty()) {
-                Text("⚠ 这次没拿到可用回复，点上面「生成候选回复」重来", fontSize = 13.sp, color = palette.warn)
+                Text("⚠ 这次没拿到可用回复，点上面「生成候选回复」重来", fontSize = TextSize.body, color = palette.warn)
             }
             // 与微信里那张卡片**同一套规格**（设计师 P1）：三条候选装在**同一张卡**里，
             // 每条是一个圆角填充块（头行「★ 风格 · 偏长」+ 右侧 ✎），预设**点 ✎ 才出现**。
@@ -167,14 +167,14 @@ fun TrialScreen(store: ConfigStore, glassAlpha: Float) {
                                     if (isReplyTooLong(reply.text)) append(" · 偏长")
                                 },
                                 color = palette.primary,
-                                fontSize = 13.sp,
+                                fontSize = TextSize.body,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.weight(1f),
                             )
                             // ✎ = 展开这一条的预设（再短点 / 更正式 / 换个说法），另外两条不动
                             Text(
                                 "✎",
-                                fontSize = 13.sp,
+                                fontSize = TextSize.body,
                                 color = palette.sub,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(RadiusR1))
@@ -183,25 +183,25 @@ fun TrialScreen(store: ConfigStore, glassAlpha: Float) {
                                     .padding(horizontal = 10.dp, vertical = 3.dp),
                             )
                         }
-                        Text(reply.text, fontSize = 15.sp, color = palette.text)
+                        Text(reply.text, fontSize = TextSize.emphasis, color = palette.text)
                         if (starred && s.why.isNotBlank()) {
-                            Text("★ 最推荐：${s.why}", fontSize = 13.sp, color = palette.sub)
+                            Text("★ 最推荐：${s.why}", fontSize = TextSize.body, color = palette.sub)
                         }
                         if (isReplyTooLong(reply.text)) {
                             Text(
                                 "${reply.text.length} 字，偏长 —— 发出去不太像人话，点右上角 ✎ 选「再短点」",
-                                fontSize = 13.sp,
+                                fontSize = TextSize.body,
                                 color = palette.warn,
                             )
                         }
                         if (presetsOpen == index) {
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(Space.sm))
                             // 只改这一条：走 complete()（一句话进一句话出），另外两条不动
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 REWRITE_PRESETS.forEach { preset ->
                                     Text(
                                         text = if (rewriting == index) "改写中…" else preset.first,
-                                        fontSize = 13.sp,
+                                        fontSize = TextSize.body,
                                         color = palette.primary,
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(RadiusR1))
@@ -234,9 +234,9 @@ fun TrialScreen(store: ConfigStore, glassAlpha: Float) {
                                 }
                             }
                         }
-                        Text("点一下复制", fontSize = 13.sp, color = palette.sub)
+                        Text("点一下复制", fontSize = TextSize.body, color = palette.sub)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Space.md))
                 }
             }
         }

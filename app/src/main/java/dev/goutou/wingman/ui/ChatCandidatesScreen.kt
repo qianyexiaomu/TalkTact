@@ -106,13 +106,13 @@ fun ChatCandidatesScreen(
 
         item {
             GlassCard(d.glassAlpha) {
-                Text("搜索", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
+                Text("搜索", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
                 Text(
                     "拉回来的名字可能有几十个 —— 输一两个字就能筛出来（只筛这一页的名单）。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(Space.md))
                 GlassField(
                     value = query,
                     onValueChange = {
@@ -128,24 +128,24 @@ fun ChatCandidatesScreen(
                     singleLine = true,
                 )
                 if (!d.whitelistEnabled) {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(Space.lg))
                     WhiteCard {
                         Text(
                             "白名单现在是关着的",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFFB3261E),
                         )
                         Text(
                             "这里加进去的名字，在开关打开之前都不会生效 —— " +
                                 "回上一页把「只对白名单里的聊天生效」打开。",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = Color(0xFF55525E),
                             modifier = Modifier.padding(top = 3.dp),
                         )
                     }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Space.lg))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         onClick = {
@@ -156,11 +156,11 @@ fun ChatCandidatesScreen(
                         shape = RoundedCornerShape(RadiusR2),
                         colors = ButtonDefaults.buttonColors(containerColor = palette.primary),
                     ) { Text("拉取会话列表") }
-                    Text(pullInfo, fontSize = 13.sp, color = palette.sub, modifier = Modifier.weight(1f))
+                    Text(pullInfo, fontSize = TextSize.body, color = palette.sub, modifier = Modifier.weight(1f))
                 }
                 note?.let {
-                    Spacer(Modifier.height(6.dp))
-                    Text(it, fontSize = 13.sp, color = palette.ok)
+                    Spacer(Modifier.height(Space.sm))
+                    Text(it, fontSize = TextSize.body, color = palette.ok)
                 }
             }
         }
@@ -206,7 +206,7 @@ fun ChatCandidatesScreen(
         item {
             Text(
                 "还没加进去的（${todo.size}）" + if (query.isNotBlank()) " · 筛出 ${hitTodo.size} 个" else "",
-                fontSize = 13.sp,
+                fontSize = TextSize.body,
                 color = palette.sub,
                 modifier = Modifier.padding(start = 30.dp, end = 30.dp, top = 10.dp, bottom = 4.dp),
             )
@@ -221,7 +221,7 @@ fun ChatCandidatesScreen(
                             query.isNotBlank() -> "没搜到「${query.trim()}」—— 换个字试试，或者清空搜索框。"
                             else -> "拉回来的 ${all.size} 个都已经加进白名单了。"
                         },
-                        fontSize = 13.sp,
+                        fontSize = TextSize.body,
                         color = palette.sub,
                     )
                 }
@@ -256,7 +256,7 @@ fun ChatCandidatesScreen(
             item {
                 Text(
                     "已经在白名单里的（${added.size}）" + if (query.isNotBlank()) " · 筛出 ${hitAdded.size} 个" else "",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                     modifier = Modifier.padding(start = 30.dp, end = 30.dp, top = 14.dp, bottom = 4.dp),
                 )
@@ -285,21 +285,21 @@ fun ChatCandidatesScreen(
             Column(Modifier.padding(horizontal = 30.dp, vertical = 10.dp)) {
                 Text(
                     "长按任意一项可多选，然后一次加入或删除。删除的杂项会被记下来，下次拉取不再出现。",
-                    fontSize = 13.sp,
+                    fontSize = TextSize.body,
                     color = palette.sub,
                 )
                 if (ignoredCount > 0) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.xs))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "已忽略 $ignoredCount 个（删掉的杂项）",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = palette.sub,
                             modifier = Modifier.weight(1f),
                         )
                         Text(
                             "恢复",
-                            fontSize = 13.sp,
+                            fontSize = TextSize.body,
                             color = palette.primary,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(RadiusR1))

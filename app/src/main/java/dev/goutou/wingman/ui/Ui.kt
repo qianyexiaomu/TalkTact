@@ -1022,7 +1022,7 @@ fun StatusChip(text: String, color: Color) {
             .background(color.copy(alpha = ChipBgAlpha))
             .border(1.dp, color.copy(alpha = CardBorderAlpha), RoundedCornerShape(RadiusR1))
             .padding(horizontal = 8.dp, vertical = 2.dp),
-        fontSize = 13.sp,
+        fontSize = TextSize.body,
         fontWeight = FontWeight.Medium,
         color = color,
     )
@@ -1058,7 +1058,7 @@ fun GlassPill(text: String, selected: Boolean, modifier: Modifier = Modifier, on
     ) {
         Text(
             text,
-            fontSize = 13.sp,
+            fontSize = TextSize.body,
             color = if (selected) Color.White else palette.text,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             // **强制单行**：胶囊是等宽（weight(1f)）排在一排里的，文字一旦折成两行，
@@ -1079,7 +1079,7 @@ fun ScreenHeader(title: String, sub: String, actions: @Composable RowScope.() ->
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = palette.text)
-            Text(sub, fontSize = 13.sp, color = palette.primary)
+            Text(sub, fontSize = TextSize.body, color = palette.primary)
         }
         actions()
     }
@@ -1096,7 +1096,7 @@ fun StatCell(big: String, small: String, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(big, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = palette.text)
-        Text(small, fontSize = 13.sp, color = palette.sub)
+        Text(small, fontSize = TextSize.body, color = palette.sub)
     }
 }
 
@@ -1439,7 +1439,7 @@ private fun NavItem(
         Spacer(Modifier.height(3.dp))
         Text(
             label,
-            fontSize = 10.sp,
+            fontSize = TextSize.caption,
             letterSpacing = 0.2.sp,
             fontWeight = if (p > 0.5f) FontWeight.SemiBold else FontWeight.Normal,
             color = tint,
