@@ -86,9 +86,7 @@ internal fun GenerationParamsCard(
 ) {
     GlassCard(d.glassAlpha) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = d.ctx.toString(),
                 onValueChange = { onUpdate(d.copy(ctx = it.toIntOrNull() ?: d.ctx)) },
                 modifier = Modifier.weight(1f),
@@ -96,9 +94,7 @@ internal fun GenerationParamsCard(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = d.minIntervalSec.toString(),
                 onValueChange = { onUpdate(d.copy(minIntervalSec = it.toIntOrNull() ?: d.minIntervalSec)) },
                 modifier = Modifier.weight(1f),
@@ -108,9 +104,7 @@ internal fun GenerationParamsCard(
             )
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            colors = glassFieldColors(),
-            shape = RoundedCornerShape(RadiusR2),
+        GlassField(
             value = d.temperature.toString(),
             onValueChange = { onUpdate(d.copy(temperature = it.toDoubleOrNull() ?: d.temperature)) },
             modifier = Modifier.fillMaxWidth(),
@@ -453,9 +447,7 @@ internal fun ReplyStyleCard(
         // 名字输入和按钮挤在**同一行**：以前是「两个输入框 + 一个整行按钮」三行，
         // 而这里平时只用得上第一格 —— 那块高度全被白占掉了。
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = newStyleName,
                 // 先在输入处就按字数上限拦住，免得粘一大段进来把药丸撑破
                 onValueChange = { if (it.length <= MAX_CUSTOM_LABEL_LEN) newStyleName = it },
@@ -493,9 +485,7 @@ internal fun ReplyStyleCard(
             ) { Text("添加风格") }
         }
         Spacer(Modifier.height(4.dp))
-        OutlinedTextField(
-            colors = glassFieldColors(),
-            shape = RoundedCornerShape(RadiusR2),
+        GlassField(
             value = newStyleHint,
             onValueChange = { newStyleHint = it },
             modifier = Modifier.fillMaxWidth(),

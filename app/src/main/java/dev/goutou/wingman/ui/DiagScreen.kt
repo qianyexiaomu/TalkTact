@@ -84,9 +84,7 @@ internal fun GeoCard(store: ConfigStore, glassAlpha: Float) {
             Switch(checked = d.geoEnabled, onCheckedChange = { saveGeoNow(it, d.geoEndpoint) })
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            colors = glassFieldColors(),
-            shape = RoundedCornerShape(RadiusR2),
+        GlassField(
             value = d.geoEndpoint,
             onValueChange = { d = d.copy(geoEndpoint = it) },
             modifier = Modifier.fillMaxWidth(),

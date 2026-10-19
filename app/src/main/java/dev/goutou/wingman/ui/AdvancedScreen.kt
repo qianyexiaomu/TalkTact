@@ -503,9 +503,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             }
             if (shapeNow == ApiShape.CUSTOM) {
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = d.customPath,
                     onValueChange = { update(d.copy(customPath = it)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -515,9 +513,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             }
             Spacer(Modifier.height(10.dp))
 
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = d.baseUrl,
                 onValueChange = { update(d.copy(baseUrl = it)) },
                 modifier = Modifier.fillMaxWidth(),
@@ -525,9 +521,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 singleLine = true,
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = d.apiKey,
                 onValueChange = { update(d.copy(apiKey = it)) },
                 modifier = Modifier.fillMaxWidth(),
@@ -536,9 +530,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 visualTransformation = PasswordVisualTransformation(),
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = d.model,
                 onValueChange = { update(d.copy(model = it)) },
                 modifier = Modifier.fillMaxWidth(),
@@ -729,9 +721,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     color = palette.sub,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = d.proxyPort.toString(),
                     onValueChange = { update(d.copy(proxyPort = it.toIntOrNull() ?: d.proxyPort)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -835,9 +825,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                 Spacer(Modifier.height(10.dp))
                 Text("第二套接口（只给「风险评估」那一路用）", fontSize = 13.sp, color = palette.sub)
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = d.baseUrl2,
                     onValueChange = { update(d.copy(baseUrl2 = it)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -845,9 +833,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     singleLine = true,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = d.apiKey2,
                     onValueChange = { update(d.copy(apiKey2 = it)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -856,9 +842,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
                     visualTransformation = PasswordVisualTransformation(),
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = d.model2,
                     onValueChange = { update(d.copy(model2 = it)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -1093,9 +1077,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             if (d.whitelistEnabled) {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        colors = glassFieldColors(),
-                        shape = RoundedCornerShape(RadiusR2),
+                    GlassField(
                         value = newChat,
                         onValueChange = { newChat = it },
                         modifier = Modifier.weight(1f),

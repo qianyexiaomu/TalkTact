@@ -281,9 +281,7 @@ internal fun RoleDetail(
                 }
             }
             Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = note,
                 onValueChange = { note = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 110.dp),
@@ -394,9 +392,7 @@ internal fun RoleDetail(
             title = { Text("给这个角色改个名字") },
             text = {
                 Column {
-                    OutlinedTextField(
-                        colors = glassFieldColors(),
-                        shape = RoundedCornerShape(RadiusR2),
+                    GlassField(
                         value = draft,
                         onValueChange = { draft = it },
                         modifier = Modifier.fillMaxWidth(),

@@ -65,9 +65,7 @@ fun TrialScreen(store: ConfigStore, glassAlpha: Float) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 120.dp)) {
         ScreenHeader("试一试", "粘贴聊天 · 预览回复 · 验证接口")
         GlassCard(glassAlpha) {
-            OutlinedTextField(
-                colors = glassFieldColors(),
-                shape = RoundedCornerShape(RadiusR2),
+            GlassField(
                 value = input,
                 onValueChange = { input = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 130.dp),

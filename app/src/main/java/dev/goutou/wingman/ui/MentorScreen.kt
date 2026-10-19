@@ -116,9 +116,7 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                     color = if (text.contains("replies")) palette.ok else palette.warn,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = text,
                     onValueChange = { text = it },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp),
@@ -177,9 +175,7 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                 )
                 if (tweak) {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        colors = glassFieldColors(),
-                        shape = RoundedCornerShape(RadiusR2),
+                    GlassField(
                         value = text,
                         onValueChange = { text = it },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
@@ -276,9 +272,7 @@ fun MentorScreen(store: ConfigStore, glassAlpha: Float, onSaved: () -> Unit) {
                     color = palette.sub,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = url,
                     onValueChange = { url = it },
                     modifier = Modifier.fillMaxWidth(),

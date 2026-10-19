@@ -113,9 +113,7 @@ fun ChatCandidatesScreen(
                     color = palette.sub,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    colors = glassFieldColors(),
-                    shape = RoundedCornerShape(RadiusR2),
+                GlassField(
                     value = query,
                     onValueChange = {
                         query = it
