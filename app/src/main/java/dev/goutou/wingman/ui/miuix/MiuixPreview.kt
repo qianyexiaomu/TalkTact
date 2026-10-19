@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
@@ -52,7 +53,10 @@ import dev.goutou.wingman.config.GLASS_QUALITY_LOW
 import dev.goutou.wingman.config.IMAGE_MODE_OCR
 import dev.goutou.wingman.config.IMAGE_MODE_OCR_THEN_VISION
 import dev.goutou.wingman.config.IMAGE_MODE_VISION
+import dev.goutou.wingman.llm.BUILT_IN_SKILLS
 import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
+import dev.goutou.wingman.llm.FULL_PROMPT
+import dev.goutou.wingman.llm.applyReplyPlan
 import dev.goutou.wingman.llm.MAX_REPLIES
 import dev.goutou.wingman.llm.REPLY_STYLES
 import dev.goutou.wingman.llm.toggledStyleIds
@@ -60,6 +64,7 @@ import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
 import dev.goutou.wingman.ui.formatTime
+import dev.goutou.wingman.ui.skillName
 import dev.goutou.wingman.ui.moduleActive
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -87,7 +92,7 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
 @Composable
 fun MiuixPreviewScreen(
     store: ConfigStore,
-    /** 打开时停在哪个标签：0 首页 / 1 角色 / 2 设置 / 3 关于。给截图测试用。 */
+    /** 打开时停在哪个标签：0 首页 / 1 军师 / 2 角色 / 3 设置 / 4 关于。给截图测试用。 */
     initialTab: Int = 0,
     /** 打开时停在哪一页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片 / 6 角色详情。 */
     initialPage: Int = 0,
@@ -138,8 +143,9 @@ fun MiuixPreviewScreen(
                 ) {
                     when (tab) {
                         0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
-                        1 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
-                        2 -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
+                        1 -> MentorTab(c, store, cfg, save)
+                        2 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
+                        3 -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
                         else -> AboutTab(c, store)
                     }
                 }
@@ -147,6 +153,7 @@ fun MiuixPreviewScreen(
                 MiuixGlassNavBar(
                     items = listOf(
                         "首页" to Icons.Filled.Home,
+                        "军师" to Icons.Filled.Edit,
                         "角色" to Icons.Filled.Person,
                         "设置" to Icons.Filled.Settings,
                         "关于" to Icons.Filled.Info,
@@ -342,6 +349,103 @@ private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier 
 }
 
 /** 角色列表：每个人一份档案。点进去看详情、改关系。 */
+/**
+ * 军师 = 提示词编辑器。
+ *
+ * 三块：**提示词**（草稿 + 保存）、**Skill**（内置几套，点一下连提示词一起换）、**重置**。
+ *
+ * 注意 Skill 切换不是「只改个 id」：它要拿 `applyReplyPlan(skill.prompt, cur.replyPlan)`
+ * **重拼一份提示词快照** —— 只改 skillId 的话，页面上显示的提示词还是旧的，两边对不上。
+ * 同时把 maxTokens 置 0（旧界面的同一条约定：别让新 skill 的输出被长度截断）。
+ *
+ * 远程导入（粘 GitHub 链接）还没搬：它要挂协程和网络状态，单独一轮做。
+ */
+@Composable
+private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (ConfigData) -> Unit) {
+    var text by remember(cfg.prompt) { mutableStateOf(cfg.prompt) }
+    var confirmReset by remember { mutableStateOf(false) }
+    val dirty = text != cfg.prompt
+
+    Row(
+        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("军师", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "当前 skill：${skillName(cfg.skillId)}",
+                fontSize = 13.sp,
+                color = c.onBackgroundVariant,
+            )
+        }
+    }
+
+    SmallTitle(text = "提示词")
+    Column(Modifier.padding(horizontal = 12.dp)) {
+        TextField(
+            value = text,
+            onValueChange = { text = it },
+            label = "提示词（改完点下面的保存）",
+            minLines = 8,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+    PrimaryButton(
+        text = if (dirty) "保存" else "已保存",
+        enabled = dirty,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        val cur = store.load()
+        save(cur.copy(prompt = text))
+    }
+
+    SmallTitle(text = "Skill")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        BUILT_IN_SKILLS.forEachIndexed { i, sk ->
+            BasicComponent(
+                title = sk.name,
+                summary = sk.summary,
+                onClick = {
+                    val cur = store.load()
+                    save(
+                        cur.copy(
+                            prompt = applyReplyPlan(sk.prompt, cur.replyPlan),
+                            skillId = sk.id,
+                            maxTokens = 0,
+                        ),
+                    )
+                },
+                rightActions = {
+                    if (cfg.skillId == sk.id) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+            if (i != BUILT_IN_SKILLS.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+
+    SmallTitle(text = "重置")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = if (confirmReset) "再点一次确认恢复" else "恢复默认提示词",
+            summary = if (confirmReset) "会把当前提示词覆盖掉" else "换回原版那份",
+            onClick = {
+                if (confirmReset) {
+                    val cur = store.load()
+                    save(cur.copy(prompt = FULL_PROMPT))
+                    confirmReset = false
+                } else {
+                    confirmReset = true
+                }
+            },
+        )
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
 @Composable
 private fun RolesTab(c: Colors, store: ConfigStore, onOpen: (String) -> Unit) {
     var tick by remember { mutableIntStateOf(0) }
