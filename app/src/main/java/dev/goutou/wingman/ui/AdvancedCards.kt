@@ -58,8 +58,7 @@ internal fun DiagnosticEntryCard(
     palette: Palette,
     onOpenDiag: () -> Unit,
 ) {
-    GlassCard(d.glassAlpha) {
-        Text("诊断", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+    SectionCard(d.glassAlpha, "诊断") {
         Text(
             "某个聊天页连按钮都不弹、或者「运行状态」报错的时候用这里：\n" +
                 "让微信进程抓一次当前界面、看它真正发出去的那次调用，再复制出来发我。",
@@ -167,8 +166,7 @@ internal fun ReplyStyleCard(
     saveCustomStyles: (List<ReplyStyle>, List<String>) -> Unit,
     saveScopedStyles: (String, List<String>) -> Unit,
 ) {
-    GlassCard(d.glassAlpha) {
-        Text("回复风格（可多选）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+    SectionCard(d.glassAlpha, "回复风格（可多选）") {
         Spacer(Modifier.height(Space.md))
 
         // ── 生效范围：下面这排药丸改的是谁 ────────────────────────────────────

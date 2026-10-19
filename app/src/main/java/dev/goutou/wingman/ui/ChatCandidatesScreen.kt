@@ -105,8 +105,7 @@ fun ChatCandidatesScreen(
         }
 
         item {
-            GlassCard(d.glassAlpha) {
-                Text("搜索", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(d.glassAlpha, "搜索") {
                 Text(
                     "拉回来的名字可能有几十个 —— 输一两个字就能筛出来（只筛这一页的名单）。",
                     fontSize = TextSize.body,

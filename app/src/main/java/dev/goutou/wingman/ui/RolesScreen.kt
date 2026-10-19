@@ -93,8 +93,7 @@ fun RolesScreen(store: ConfigStore, glassAlpha: Float, open: String?, onOpen: (S
             HeaderButton("↻ 刷新") { tick++ }
         }
 
-        GlassCard(glassAlpha) {
-            Text("这是干什么的", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(glassAlpha, "这是干什么的") {
             Text(
                 "模块会在你打开某个聊天页时，把读到的消息按联系人归档到这里（1 小时内重复的内容只留一条）。\n" +
                     "点进某个人，写上「TA 是你什么人」和「平时的关系」—— 这些会连同之前攒下的聊天记录一起，\n" +
@@ -107,8 +106,7 @@ fun RolesScreen(store: ConfigStore, glassAlpha: Float, open: String?, onOpen: (S
         }
 
         if (roles.isEmpty()) {
-            GlassCard(glassAlpha) {
-                Text("还没有记录", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "还没有记录") {
                 Text(
                     "去微信里打开几个聊天页，每个停两三秒，再回来点「刷新」。\n" +
                         "（只在聊天页可见时读得到，所以记录是「你在场时看到的那几条」慢慢攒起来的。）",
@@ -261,8 +259,7 @@ internal fun RoleDetail(
             HeaderButton("← 返回", onBack)
         }
 
-        GlassCard(glassAlpha) {
-            Text("TA 是你什么人", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(glassAlpha, "TA 是你什么人") {
             if (role.renamed) {
                 Text(
                     "（识别到的会话名是「${role.key}」，它负责匹配、不会被改动，所以改了名字以后消息还是记到这一条）",
@@ -311,8 +308,7 @@ internal fun RoleDetail(
             ) { Text(if (dirty) "保存" else "已保存") }
         }
 
-        GlassCard(glassAlpha) {
-            Text("记下来的聊天（${role.msgs.size} 条）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(glassAlpha, "记下来的聊天（${role.msgs.size} 条）") {
             Text(
                 "时间是我「看到」它的时间，不是微信里那条消息的真实时间 —— 微信不给这条信息，" +
                     "而模块只在聊天页可见时读得到。生成回复时会带上最近 20 条（屏幕上已有的不再重复）。",
@@ -531,8 +527,7 @@ internal fun SelfStyleDetail(store: ConfigStore, glassAlpha: Float) {
         item { ScreenHeader("本人", "我的说话风格") }
 
         item {
-            GlassCard(glassAlpha) {
-                Text("这是干什么的", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "这是干什么的") {
                 Text(
                     "把「你自己发出去的话」攒起来，每天在你设定的时间交给模型提炼成一份说话风格档案。\n" +
                         "「军师」生成候选回复时会参考它 —— 回复就会更像你平时说话的样子。\n\n" +

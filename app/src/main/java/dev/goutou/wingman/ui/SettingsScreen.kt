@@ -86,8 +86,7 @@ fun SettingsScreen(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 120.dp)) {
         ScreenHeader("设置", "外观 · 高级设置 · 关于")
 
-        GlassCard(d.glassAlpha) {
-            Text("外观", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "外观") {
             Spacer(Modifier.height(Space.sm))
             Text("玻璃不透明度：${(d.glassAlpha * 100).toInt()}%", fontSize = TextSize.body, color = palette.sub)
             Slider(value = d.glassAlpha, onValueChange = { update(d.copy(glassAlpha = it)) }, valueRange = 0.3f..1f)
@@ -180,8 +179,7 @@ fun SettingsScreen(
             }
         }
 
-        GlassCard(d.glassAlpha) {
-            Text("高级设置", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "高级设置") {
             // 三行「现在是什么样」：入口卡原来只有一句名词罗列（接口地址 / 分析 / 备份 / 诊断），
             // 看完仍然不知道当前配成了什么。摘要只**报状态**、不做判断，要改再进去。
             // 三行分别对应高级设置里的「接入 / 微信内 / 识别」三组，找东西时可以对上号。

@@ -522,3 +522,35 @@ internal fun PickBar(
 
 internal fun clockText(at: Long): String =
     java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(at))
+
+/**
+ * 带标题的卡片：标题的字号、字重、颜色只写这一处。
+ *
+ * 之前 24 张卡每处都手抄同一句 `Text("…", fontSize = TextSize.cardTitle,
+ * fontWeight = FontWeight.SemiBold, color = palette.text)`。抄错一个字重或颜色，
+ * 那张卡的标题就跟别的卡长得不一样 —— 这种偏差在截图里很显眼、在代码里却看不出来
+ *（因为每一处单独看都"像是对的"）。
+ *
+ * ⚠️ 这里**只收标题，不管标题与内容之间的间距**：现有 24 张卡里 21 张没有显式间距
+ *（靠内容自己的 padding 撑开）、2 张 8dp、1 张 6dp。把间距也统一会**改外观**，
+ * 那是设计决定、不属于这次「行为与外观都不变」的重构 —— 需要时由调用方在 content 里自己写。
+ */
+@Composable
+fun SectionCard(
+    glassAlpha: Float,
+    title: String,
+    modifier: Modifier = Modifier,
+    border: Color? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val palette = LocalPalette.current
+    GlassCard(glassAlpha, modifier = modifier, border = border) {
+        Text(
+            title,
+            fontSize = TextSize.cardTitle,
+            fontWeight = FontWeight.SemiBold,
+            color = palette.text,
+        )
+        content()
+    }
+}

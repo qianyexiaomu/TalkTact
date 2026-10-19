@@ -611,8 +611,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
             )
         }
 
-        GlassCard(d.glassAlpha) {
-            Text("本地代理（API Key 不出本应用）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "本地代理（API Key 不出本应用）") {
             Text(
                 "开启后：聊天内容先送到本机的 127.0.0.1，由这个 App 带上 Key 去调你的接口。\n" +
                     "注入到微信里的那段代码从此**拿不到 Key** —— 做法不是加密，是根本不给它。",
@@ -797,8 +796,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
 
         GroupTitle("生成")
 
-        GlassCard(d.glassAlpha) {
-            Text("生成模式", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "生成模式") {
             Spacer(Modifier.height(Space.md))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 GlassPill("直通（一套接口）", !d.graded, Modifier.weight(1f)) { saveGraded(false) }
@@ -919,8 +917,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
 
         GroupTitle("识别")
 
-        GlassCard(d.glassAlpha) {
-            Text("图片文字识别（OCR）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "图片文字识别（OCR）") {
             Text(
                 "聊天里的图片会先在这台手机上认成文字，再和别的消息一起交给模型 —— " +
                     "截图、长图里的话也能被读懂。\n" +
@@ -1009,8 +1006,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
 
         GenerationParamsCard(d, dirty, palette, onUpdate = { update(it) }, onSave = { saveAll() })
 
-        GlassCard(d.glassAlpha) {
-            Text("会话白名单", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "会话白名单") {
             // 白底说明卡放最上面：这一页最容易踩的坑（名字对不上、开关开着名单空着）先说清楚。
             // 白卡和玻璃卡刻意不同 —— 玻璃是界面的一部分，白卡是「贴上去的说明书」。
             WhiteCard {
@@ -1252,8 +1248,7 @@ val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.C
 
         GroupTitle("维护与排障")
 
-        GlassCard(d.glassAlpha) {
-            Text("备份 / 迁移", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(d.glassAlpha, "备份 / 迁移") {
             Text(
                 "换包名、换手机的时候用：导出成一个 json 文件，装好新的再导入回来。\n" +
                     "导入是合并：角色只覆盖同名的，备份里没有的会保留。",

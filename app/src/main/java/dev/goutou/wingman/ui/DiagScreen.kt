@@ -63,8 +63,7 @@ internal fun GeoCard(store: ConfigStore, glassAlpha: Float) {
         persisted = d
     }
 
-    GlassCard(glassAlpha) {
-        Text("网络信息（归属地）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+    SectionCard(glassAlpha, "网络信息（归属地）") {
         Text(
             "「运行状态 → 接口自检」里那两行省份，是拿 IP 去问第三方库要的 —— 这是整个模块唯一一处" +
                 "会把 IP 发给别人的地方。关掉之后自检只显示 IP，一次都不问。",
@@ -160,8 +159,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
         // 「最近一次调用」提到**页首**：出问题时第一眼看的就是「实际发出去的到底是什么」，
         // 而它原本排在整页最后，滚半天才到 —— 偏偏这是最常被复制的那一段。
         if (lastCall.isNotBlank()) {
-            GlassCard(glassAlpha, border = palette.primary.copy(alpha = CardBorderAlpha)) {
-                Text("最近一次调用（注入侧真正发出去的）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "最近一次调用（注入侧真正发出去的）", border = palette.primary.copy(alpha = CardBorderAlpha)) {
                 Text(
                     "发生于 ${formatTime(lastCallAt)} · 这里是微信进程实际拿去调接口的那一份，不是本 App 里的配置。" +
                         "核对「当前军师」有没有真的生效，看 system 长度那一行。",
@@ -177,8 +175,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
                 ) { Text("复制这一段") }
             }
         } else {
-            GlassCard(glassAlpha) {
-                Text("还没有调用记录", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "还没有调用记录") {
                 Text("在微信里生成过一次候选回复之后，那份请求就会留在这里。", fontSize = TextSize.body, color = palette.sub)
             }
         }
@@ -186,8 +183,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
         // 归属地从「高级设置」沉到这里：只读的排障信息，跟「要配的」分开。
         GeoCard(store, glassAlpha)
 
-        GlassCard(glassAlpha) {
-            Text("抓取微信界面", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+        SectionCard(glassAlpha, "抓取微信界面") {
             Text(
                 "某些聊天页连卡片都不弹时用这个：先在微信里停在那个聊天页 → 切回这里点下面的按钮 → " +
                     "再切回微信（那个页面重新出现就会自动抓）→ 回来点「刷新」→ 复制下面的「诊断」发我。",
@@ -208,8 +204,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
         }
 
         if (trace.isNotBlank()) {
-            GlassCard(glassAlpha, border = palette.okMark.copy(alpha = CardBorderAlpha)) {
-                Text("决策轨迹（每一轮读到什么、停在哪一步）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "决策轨迹（每一轮读到什么、停在哪一步）", border = palette.okMark.copy(alpha = CardBorderAlpha)) {
                 Text(
                     "更新于 ${formatTime(traceAt)} · 卡片不弹时先看它：注入侧每一轮都留一条，" +
                         "扫一眼就知道是卡在「找不到输入框」还是「最后一条是我发的」。它刻意不含聊天正文。",
@@ -225,8 +220,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
                 ) { Text("复制轨迹") }
             }
         } else {
-            GlassCard(glassAlpha) {
-                Text("还没有轨迹", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "还没有轨迹") {
                 Text(
                     "在微信里打开一个聊天页停一会儿，注入侧就会把判定记下来并自动回传；" +
                         "也可以点上面那个「抓当前微信界面」立刻带一份回来。",
@@ -237,8 +231,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
         }
 
         if (diag.isNotBlank()) {
-            GlassCard(glassAlpha, border = palette.warnMark.copy(alpha = CardBorderAlpha)) {
-                Text("诊断（来自微信进程）", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "诊断（来自微信进程）", border = palette.warnMark.copy(alpha = CardBorderAlpha)) {
                 Text(
                     "生成于 ${formatTime(diagAt)} · 排查「读不到消息 / 全是图片」时把它复制给对方",
                     fontSize = TextSize.body,
@@ -253,8 +246,7 @@ fun DiagScreen(store: ConfigStore, glassAlpha: Float, onBack: () -> Unit) {
                 ) { Text("复制诊断") }
             }
         } else {
-            GlassCard(glassAlpha) {
-                Text("还没有诊断", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glassAlpha, "还没有诊断") {
                 Text("上面那个按钮抓过一次之后，微信进程会把界面结构留在这里。", fontSize = TextSize.body, color = palette.sub)
             }
         }

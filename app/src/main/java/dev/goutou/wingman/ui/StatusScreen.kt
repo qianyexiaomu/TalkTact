@@ -285,8 +285,7 @@ fun StatusScreen(store: ConfigStore, onTrial: () -> Unit) {
             }
         }
         item {
-            GlassCard(glass) {
-                Text("接口自检", fontSize = TextSize.cardTitle, fontWeight = FontWeight.SemiBold, color = palette.text)
+            SectionCard(glass, "接口自检") {
                 Text(
                     "只看「连不连得上、要多久」：发一次最小请求（一句 ping、只让它回 1 个 token）。\n" +
                         "不拼当前 skill、也不看模型回了什么 —— 模型没按 JSON 回复算不上连接问题，" +
