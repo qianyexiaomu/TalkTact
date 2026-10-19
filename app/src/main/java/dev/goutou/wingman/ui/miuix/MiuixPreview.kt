@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.goutou.wingman.config.ConfigData
@@ -123,6 +124,9 @@ private fun HomeTab(
     val (calls, tokens) = remember { store.usage() }
     val active = moduleActive(store)
     val styles = cfg.replyPlan.styles.size
+    // 卡片右侧那三行小指标用的都是真实配置：勾了几种风格 / 单独设过几个联系人 / 白名单几个人
+    val chats = cfg.chatStyles.size
+    val white = cfg.whitelist.size
 
     Row(
         Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
@@ -149,31 +153,52 @@ private fun HomeTab(
         color = if (active) c.primary.copy(alpha = 0.12f) else c.surface,
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(9.dp)
-                        .clip(CircleShape)
-                        .background(if (active) c.primary else c.onSurfaceVariantSummary),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (active) "运行中" else "未启用",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = c.onSurface,
-                )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                // 左：状态 + 模型 + 自动分析（宽度让给右边那三行，模型名太长就省略号）
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(9.dp)
+                                .clip(CircleShape)
+                                .background(if (active) c.primary else c.onSurfaceVariantSummary),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (active) "运行中" else "未启用",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = c.onSurface,
+                        )
+                    }
+                    Spacer(Modifier.height(9.dp))
+                    Text(
+                        "模型　${cfg.model.ifBlank { "还没填" }}",
+                        fontSize = 13.sp,
+                        color = c.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        "自动分析　${if (cfg.enabled) "开" else "关"}",
+                        fontSize = 13.sp,
+                        color = c.onSurface,
+                        maxLines = 1,
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                // 右：三行小指标（右对齐）。都是真实配置，不是装饰数字。
+                Column(horizontalAlignment = Alignment.End) {
+                    MetaRow(c, "风格", "$styles 种")
+                    Spacer(Modifier.height(5.dp))
+                    MetaRow(c, "联系人", "$chats 个")
+                    Spacer(Modifier.height(5.dp))
+                    MetaRow(c, "白名单", "$white 个")
+                }
             }
-            Spacer(Modifier.height(10.dp))
-            Text("模型　${cfg.model.ifBlank { "还没填" }}", fontSize = 14.sp, color = c.onSurface)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                "自动分析　${if (cfg.enabled) "开" else "关"}　·　回复风格 $styles 种",
-                fontSize = 14.sp,
-                color = c.onSurface,
-            )
             if (!active) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "到 LSPosed 里勾选微信，再强行停止微信重开",
                     fontSize = 12.sp,
@@ -222,6 +247,16 @@ private fun HomeTab(
                 color = c.onSurfaceVariantSummary,
             )
         }
+    }
+}
+
+/** 状态卡右侧的一行小指标：左边灰色标签、右边深色数值（整列右对齐）。 */
+@Composable
+private fun MetaRow(c: Colors, label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 11.sp, color = c.onSurfaceVariantSummary, maxLines = 1)
+        Spacer(Modifier.width(6.dp))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = c.onSurface, maxLines = 1)
     }
 }
 
