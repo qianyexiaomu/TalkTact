@@ -60,8 +60,9 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
  * 布局参照 KernelSU / BoxProxy 那一类工具首页：
  * **大标题 → 状态大卡 → 2×2 小信息卡 → 底部液态玻璃导航条**。
  *
- * 玻璃导航条是**独立的一份**（[MiuixGlassNavBar]），用的是项目原有的 `GlassSurface` ——
- * 只有它会在背景图上做折射/模糊；Miuix 自己的 NavigationBar 是不透明实心板，对不上参考图。
+ * 导航条是**独立的一份**（[MiuixGlassNavBar]）：Miuix 自己的 NavigationBar 是不透明实心板，
+ * 而旧玻璃系统的 `GlassSurface` 读的是项目旧调色板（紫），跟这里的蓝不搭 ——
+ * 所以这里用 Miuix 的 surface 半透明 + 细描边 + 投影，深浅色都跟着主题走。
  */
 @Composable
 fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
@@ -101,7 +102,6 @@ fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
                     "关于" to Icons.Filled.Info,
                 ),
                 selected = tab,
-                glassAlpha = cfg.glassAlpha,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
@@ -209,6 +209,19 @@ private fun HomeTab(
     ) {
         MiniStat(c, "参考条数", "${cfg.ctx} 条", Modifier.weight(1f))
         MiniStat(c, "最短间隔", "${cfg.minIntervalSec}s", Modifier.weight(1f))
+    }
+
+    Spacer(Modifier.height(14.dp))
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+            Text("提示", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "改完设置要「强行停止微信」再打开 —— 注入侧的模块代码是微信启动时加载的。",
+                fontSize = 12.sp,
+                color = c.onSurfaceVariantSummary,
+            )
+        }
     }
 }
 

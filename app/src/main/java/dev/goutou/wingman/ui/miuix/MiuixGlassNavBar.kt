@@ -2,9 +2,9 @@ package dev.goutou.wingman.ui.miuix
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,7 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,35 +44,31 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.goutou.wingman.ui.GlassSurface
-import dev.goutou.wingman.ui.LocalPalette
-import dev.goutou.wingman.ui.RadiusR3
-import dev.goutou.wingman.ui.RadiusR4
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
 
-private val NavShape = RoundedCornerShape(RadiusR4)
-private val IndicatorShape = RoundedCornerShape(RadiusR3)
-private val NavHeight = 62.dp
+private val NavShape = RoundedCornerShape(30.dp)
+private val IndicatorShape = RoundedCornerShape(24.dp)
+private val NavHeight = 60.dp
 
 /**
- * 底部「液态玻璃」导航条（参考 BoxProxy / HyperOS 那种悬浮圆角玻璃板）。
+ * 底部导航条（悬浮、圆角、半透明，选中项一颗会滑动的药丸）。
  *
- * 直接用项目已有的真玻璃（[GlassSurface]）而不是 Miuix 的 NavigationBar：
- * - 这块**压在背景图上**，要的是「透出下面颜色」的效果，`GlassSurface` 的折射/模糊就是干这个的；
- * - Miuix 的 NavigationBar 是不透明 surface，放上去会是一块实心板，跟参考图不是一回事。
+ * **不再用 `GlassSurface`**：那是给「压在渐变背景上、要真折射」的场景做的，而新版页面
+ * 自带一层近白底（见 `MiuixPreviewScreen` 的注释），底下没有东西可模糊 —— 用它只会
+ * 换来一块**紫色调**的板（它读的是项目旧的 `LocalPalette`），跟 Miuix 的蓝完全不搭。
  *
- * 选中态是一整块**会滑动的药丸**（弹簧跟随），不是每格各自变色 —— 切页时是连续位移。
- * 指示块用 `offset { }` 的 lambda 重载：只走布局阶段、不触发重组，滑动才满帧。
+ * 现在用的是 Miuix 自己的 `surface` 半透明 + 细描边 + 投影：在白底上读作「浮起来的磨砂玻璃」，
+ * 深浅色都跟着主题走。
  */
 @Composable
 fun MiuixGlassNavBar(
     items: List<Pair<String, ImageVector>>,
     selected: Int,
-    glassAlpha: Float,
     modifier: Modifier = Modifier,
     onSelect: (Int) -> Unit,
 ) {
-    val palette = LocalPalette.current
+    val c = MiuixTheme.colorScheme
     val haptics = LocalHapticFeedback.current
     var rowWidth by remember { mutableIntStateOf(0) }
     val cellPx = if (rowWidth > 0) rowWidth.toFloat() / items.size else 0f
@@ -84,7 +81,19 @@ fun MiuixGlassNavBar(
         )
     }
 
-    GlassSurface(shape = NavShape, glassAlpha = glassAlpha, big = true, modifier = modifier) {
+    Box(
+        modifier
+            .shadow(
+                elevation = 16.dp,
+                shape = NavShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.14f),
+            )
+            .clip(NavShape)
+            .background(c.surface.copy(alpha = 0.94f))
+            .border(0.5.dp, c.dividerLine, NavShape),
+    ) {
         Box(Modifier.fillMaxWidth().height(NavHeight)) {
             if (cellPx > 0f) {
                 Box(
@@ -93,17 +102,10 @@ fun MiuixGlassNavBar(
                         .offset { IntOffset((slide.value * cellPx).roundToInt(), 0) }
                         .width(with(LocalDensity.current) { cellPx.toDp() })
                         .fillMaxHeight()
-                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .padding(horizontal = 5.dp, vertical = 6.dp)
                         .clip(IndicatorShape)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    palette.primary.copy(alpha = 0.34f),
-                                    palette.primary.copy(alpha = 0.14f),
-                                ),
-                            ),
-                        )
-                        .border(1.dp, palette.primary.copy(alpha = 0.36f), IndicatorShape),
+                        .background(c.primary.copy(alpha = 0.14f))
+                        .border(0.5.dp, c.primary.copy(alpha = 0.30f), IndicatorShape),
                 )
             }
             Row(
@@ -120,8 +122,8 @@ fun MiuixGlassNavBar(
                         Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(RadiusR3))
-                            // 已经有指示块了，不要再叠一层涟漪（会闪出个不重合的方块）
+                            .clip(IndicatorShape)
+                            // 已经有指示块，不要再叠一层涟漪（会闪出个和它不重合的方块）
                             .clickable(
                                 interactionSource = interaction,
                                 indication = null,
@@ -144,13 +146,13 @@ fun MiuixGlassNavBar(
                         Icon(
                             icon,
                             contentDescription = label,
-                            tint = lerp(palette.sub, palette.primary, p),
+                            tint = lerp(c.onSurfaceVariantSummary, c.primary, p),
                             modifier = Modifier.size(20.dp + 2.dp * p),
                         )
                         Text(
                             label,
                             fontSize = 10.sp,
-                            color = lerp(palette.sub, palette.primary, p),
+                            color = lerp(c.onSurfaceVariantSummary, c.primary, p),
                             maxLines = 1,
                         )
                     }
