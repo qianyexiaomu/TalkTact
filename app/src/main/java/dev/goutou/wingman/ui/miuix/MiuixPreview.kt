@@ -68,7 +68,10 @@ fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
         val cfg = remember { store.load() }
         var tab by remember { mutableIntStateOf(0) }
 
-        Box(Modifier.fillMaxSize().background(c.background)) {
+        // **不涂底色**（透明）：下面那层是 App 自己的渐变背景（App() 里的 BackgroundLayer），
+        // 玻璃导航条要靠它才有东西可模糊。这里一旦铺上 Miuix 的实色 background，
+        // 就等于把渐变盖死 —— 导航条会变成一块「糊在灰底上的半透明板」。
+        Box(Modifier.fillMaxSize()) {
             Column(
                 Modifier
                     .fillMaxSize()

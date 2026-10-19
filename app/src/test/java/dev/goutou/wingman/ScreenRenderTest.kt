@@ -257,12 +257,12 @@ class ScreenRenderTest {
     /**
      * Miuix 新版界面（预览）。
      *
-     * 不套 `page {}`：那层是给玻璃卡片准备的渐变背景，Miuix 自带 `MiuixTheme` 的背景色，
-     * 套上去反而会看到「玻璃底 + Miuix 卡片」两层。
+     * **必须套 `page {}`**：新版页面的底是**透明**的（玻璃导航条要靠下层的渐变才有东西可模糊），
+     * 不铺背景的话截出来就是一块空白，跟真机完全不是一回事。
      */
     @Test
     fun `Miuix 预览页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store) {} }
+        page { MiuixPreviewScreen(store) {} }
         rule.onNodeWithText("微信军师").assertExists()
         rule.onNodeWithText("运行状态").assertExists()
         capture("miuix-home")
