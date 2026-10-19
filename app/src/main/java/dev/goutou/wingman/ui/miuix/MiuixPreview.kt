@@ -1,5 +1,7 @@
 package dev.goutou.wingman.ui.miuix
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -74,6 +76,7 @@ import dev.goutou.wingman.wechat.Sensitive
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
+import dev.goutou.wingman.ui.buildDiagZip
 import dev.goutou.wingman.ui.formatTime
 import dev.goutou.wingman.ui.skillName
 import dev.goutou.wingman.ui.moduleActive
@@ -195,7 +198,8 @@ fun MiuixPreviewScreen(
                         4 -> EndpointPage(c, cfg, save, onOld = onBack) { page = 0 }
                         5 -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
                         6 -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
-                        else -> AboutPage(c, store) { page = 0 }
+                        7 -> AboutPage(c, store) { page = 0 }
+                        else -> DiagnosticPage(c, store, cfg, save) { page = 0 }
                     }
                 }
             }
@@ -847,12 +851,12 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = onOld)
+        SuperArrow(title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = { onOpenPage(8) })
     }
 
     Spacer(Modifier.height(18.dp))
     Text(
-        "外观 / 自动分析 / 回复风格 / 接入 / 图片 已经是 Miuix 页面；白名单、备份、诊断暂时回旧界面。",
+        "只剩「会话白名单」和「备份与迁移」还在旧界面，其余都已经是新界面。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 28.dp),
@@ -1140,6 +1144,125 @@ private fun ImagePage(
 }
 
 /** 主按钮（HyperOS 那种实心圆角）。Miuix 0.2.9 的 Button 签名没把握，先用 Box 画一个稳的。 */
+/**
+ * 诊断：三份运行时快照 + 抓取 + 导出。
+ *
+ * 数据全在 `ConfigStore` 里（注入侧回传后落盘）：`lastCall` / `trace` / `diag`。
+ * 三块都给「时间 + 长度 + 点一下复制全文」—— 这些内容动辄几千字，塞进卡片里没法读，
+ * 真要排查时都是复制出去看。
+ */
+@Composable
+private fun DiagnosticPage(
+    c: Colors,
+    store: ConfigStore,
+    cfg: ConfigData,
+    save: (ConfigData) -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    var tick by remember { mutableIntStateOf(0) }
+    var exportNote by remember { mutableStateOf<String?>(null) }
+
+    val lastCall = remember(tick) { store.lastCall() }
+    val lastCallAt = remember(tick) { store.lastCallAt() }
+    val trace = remember(tick) { store.trace() }
+    val traceAt = remember(tick) { store.traceAt() }
+    val diag = remember(tick) { store.diag() }
+    val diagAt = remember(tick) { store.diagAt() }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        if (uri != null) {
+            exportNote = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(buildDiagZip(context, store, store.load()))
+                }
+                "已导出"
+            }.getOrElse { "导出失败：${it.message}" }
+        }
+    }
+
+    DetailHeader(c, "诊断", onBack)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 26.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "排查「不出候选 / 报错」用这里：先看三份快照，再抓一次界面或导出诊断包。",
+            fontSize = 12.sp,
+            color = c.onBackgroundVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text("刷新", fontSize = 14.sp, color = c.primary, modifier = Modifier.clickable { tick++ }.padding(8.dp))
+    }
+
+    SmallTitle(text = "快照（点一下复制）")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        DiagRow(c, "最近一次调用", lastCall, lastCallAt) { clipboard.setText(AnnotatedString(lastCall)) }
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        DiagRow(c, "决策轨迹", trace, traceAt) { clipboard.setText(AnnotatedString(trace)) }
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        DiagRow(c, "界面诊断", diag, diagAt) { clipboard.setText(AnnotatedString(diag)) }
+    }
+
+    SmallTitle(text = "操作")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "抓取微信界面",
+            summary = "让微信进程把当前界面结构回传一次（几秒后刷新看「界面诊断」）",
+            onClick = {
+                store.requestDiag()
+                tick++
+            },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "导出诊断包（zip）",
+            summary = "环境 / 配置（不含 Key）/ 角色条数 / 界面结构 / 最近一次调用",
+            onClick = { exportLauncher.launch("TalkTact-诊断包.zip") },
+        )
+    }
+    exportNote?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it, fontSize = 12.sp, color = c.onBackgroundVariant, modifier = Modifier.padding(horizontal = 26.dp))
+    }
+
+    SmallTitle(text = "归属地")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "IP 归属地",
+            summary = "「网络信息」里那几项归属地要查一次接口",
+            checked = cfg.geoEnabled,
+            onCheckedChange = { save(cfg.copy(geoEnabled = it)) },
+        )
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+@Composable
+private fun DiagRow(
+    c: Colors,
+    title: String,
+    body: String,
+    at: Long,
+    onCopy: () -> Unit,
+) {
+    val head = if (at > 0) formatTime(at) else ""
+    val size = if (body.isBlank()) "还没有" else "${body.length} 字"
+    BasicComponent(
+        title = title,
+        summary = if (body.isBlank()) "还没有数据" else "$head · $size · 点一下复制",
+        onClick = if (body.isBlank()) null else onCopy,
+        rightActions = {
+            if (body.isNotBlank()) {
+                Text("复制", fontSize = 13.sp, color = c.primary)
+            }
+        },
+    )
+}
+
 @Composable
 private fun PrimaryButton(
     text: String,

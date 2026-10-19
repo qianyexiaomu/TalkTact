@@ -346,6 +346,14 @@ class ScreenRenderTest {
         capture("miuix-about")
     }
 
+    /** Miuix 二级页：诊断。 */
+    @Test
+    fun `Miuix 诊断页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 8) {} }
+        rule.onNodeWithText("操作").assertExists()
+        capture("miuix-diag")
+    }
+
     /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
     @Test
     fun `Miuix 角色详情能渲染`() {
