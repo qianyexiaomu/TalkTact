@@ -387,7 +387,10 @@ private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (Con
             value = text,
             onValueChange = { text = it },
             label = "提示词（改完点下面的保存）",
-            minLines = 8,
+            // 高度要封顶：提示词动辄几十行，不限高的话它会把 Skill / 重置整个挤出屏幕
+            //（真机截图里就是这样，底下的字还透在导航条底下）。超出的部分在框内滚动。
+            minLines = 5,
+            maxLines = 10,
             modifier = Modifier.fillMaxWidth(),
         )
     }
