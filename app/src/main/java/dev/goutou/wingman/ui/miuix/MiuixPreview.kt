@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,11 +37,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.ConfigStore
+import dev.goutou.wingman.config.GLASS_QUALITY_AUTO
+import dev.goutou.wingman.config.GLASS_QUALITY_HIGH
+import dev.goutou.wingman.config.GLASS_QUALITY_LOW
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
@@ -69,8 +75,15 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
 fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
     MiuixTheme(colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
         val c = MiuixTheme.colorScheme
-        val cfg = remember { store.load() }
+        var cfg by remember { mutableStateOf(store.load()) }
         var tab by remember { mutableIntStateOf(0) }
+        // 二级页：0 = 没有（底部导航那一层），1 = 外观，2 = 自动分析
+        var page by remember { mutableIntStateOf(0) }
+        // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
+        val save: (ConfigData) -> Unit = { next ->
+            store.save(next)
+            cfg = store.load()
+        }
 
         // 底色用 Miuix 自己的 `background`（浅色是近白灰、深色是黑）。
         //
@@ -79,35 +92,51 @@ fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
         // 代价是玻璃导航条没东西可模糊、退化成「白磨砂 + 描边」；这个取舍是刻意的：
         // 干净比"真折射"重要，导航条在白底上也一样好看。
         Box(Modifier.fillMaxSize().background(c.background)) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .statusBarsPadding()
-                    // 给底部导航条留位置：不留的话最后一张卡会被压在半透明玻璃底下
-                    .padding(bottom = 108.dp),
-            ) {
-                when (tab) {
-                    0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
-                    1 -> StatusTab(c, store, cfg)
-                    2 -> SettingsTab(c, onBack)
-                    else -> AboutTab(c, store)
+            if (page == 0) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .statusBarsPadding()
+                        // 给底部导航条留位置：不留的话最后一张卡会被压在半透明玻璃底下
+                        .padding(bottom = 108.dp),
+                ) {
+                    when (tab) {
+                        0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
+                        1 -> StatusTab(c, store, cfg)
+                        2 -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
+                        else -> AboutTab(c, store)
+                    }
+                }
+
+                MiuixGlassNavBar(
+                    items = listOf(
+                        "首页" to Icons.Filled.Home,
+                        "状态" to Icons.Filled.Pets,
+                        "设置" to Icons.Filled.Settings,
+                        "关于" to Icons.Filled.Info,
+                    ),
+                    selected = tab,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) { tab = it }
+            } else {
+                // 二级页：不显示底部导航（避免两套导航打架），顶部一个返回行
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .statusBarsPadding()
+                        .padding(bottom = 28.dp),
+                ) {
+                    when (page) {
+                        1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
+                        else -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
+                    }
                 }
             }
-
-            MiuixGlassNavBar(
-                items = listOf(
-                    "首页" to Icons.Filled.Home,
-                    "状态" to Icons.Filled.Pets,
-                    "设置" to Icons.Filled.Settings,
-                    "关于" to Icons.Filled.Info,
-                ),
-                selected = tab,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-            ) { tab = it }
         }
     }
 }
@@ -325,7 +354,7 @@ private fun StatusTab(c: Colors, store: ConfigStore, cfg: ConfigData) {
 }
 
 @Composable
-private fun SettingsTab(c: Colors, onBack: () -> Unit) {
+private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 28.dp, end = 24.dp, top = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -335,30 +364,30 @@ private fun SettingsTab(c: Colors, onBack: () -> Unit) {
 
     SmallTitle(text = "常用")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "外观与背景", summary = "玻璃强度 / 背景图 / 深色", onClick = onBack)
+        SuperArrow(title = "外观与背景", summary = "玻璃强度 / 背景图 / 深色", onClick = { onOpenPage(1) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = onBack)
+        SuperArrow(title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = onBack)
+        SuperArrow(title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = onOld)
     }
     SmallTitle(text = "微信内")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "自动分析", summary = "开关 / 频率 / 参考条数", onClick = onBack)
+        SuperArrow(title = "自动分析", summary = "开关 / 频率 / 参考条数", onClick = { onOpenPage(2) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "会话白名单", summary = "只在这些聊天里工作", onClick = onBack)
+        SuperArrow(title = "会话白名单", summary = "只在这些聊天里工作", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = onBack)
+        SuperArrow(title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = onOld)
     }
     SmallTitle(text = "维护")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = onBack)
+        SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = onBack)
+        SuperArrow(title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = onOld)
     }
 
     Spacer(Modifier.height(18.dp))
     Text(
-        "这些条目现在都回到旧界面（迁移中）。第二阶段会把每个二级页做成独立的 Miuix 页面。",
+        "外观、自动分析已经是 Miuix 页面；其余条目暂时回旧界面（逐页迁移中）。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 28.dp),
@@ -389,6 +418,150 @@ private fun AboutTab(c: Colors, store: ConfigStore) {
             )
         }
     }
+}
+
+@Composable
+private fun DetailHeader(c: Colors, title: String, onBack: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 22.dp, end = 24.dp, top = 18.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "‹ 返回",
+            fontSize = 15.sp,
+            color = c.primary,
+            modifier = Modifier.clickable(onClick = onBack).padding(vertical = 8.dp, horizontal = 2.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
+    }
+}
+
+/**
+ * 外观：玻璃效果三档。
+ *
+ * 只搬「档位」这一组 —— 不透明度/模糊是连续滑杆，Miuix 这边还没有对应的控件，
+ * 先用一条 SuperArrow 指回旧界面（迁移中，不做半吊子替代）。
+ */
+@Composable
+private fun AppearancePage(
+    c: Colors,
+    cfg: ConfigData,
+    save: (ConfigData) -> Unit,
+    onOld: () -> Unit,
+    onBack: () -> Unit,
+) {
+    DetailHeader(c, "外观与背景", onBack)
+
+    SmallTitle(text = "玻璃效果")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        val options = listOf(
+            Triple("自动", "按设备性能和内存自己挑", GLASS_QUALITY_AUTO),
+            Triple("高（全开）", "模糊和折射都开，最好看也最费", GLASS_QUALITY_HIGH),
+            Triple("低（省电）", "不模糊、不掉帧", GLASS_QUALITY_LOW),
+        )
+        options.forEachIndexed { i, opt ->
+            val label = opt.first
+            val desc = opt.second
+            val id = opt.third
+            BasicComponent(
+                title = label,
+                summary = desc,
+                onClick = { save(cfg.copy(glassQuality = id)) },
+                rightActions = {
+                    if (cfg.glassQuality == id) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+            if (i != options.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+
+    SmallTitle(text = "更多")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "不透明度 / 模糊 / 背景图", summary = "这三项在旧界面里调", onClick = onOld)
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/** 自动分析：开关 + 两个节奏参数。参考条数/间隔用「− 数值 ＋」步进，比数字输入框稳。 */
+@Composable
+private fun AutoAnalyzePage(
+    c: Colors,
+    cfg: ConfigData,
+    save: (ConfigData) -> Unit,
+    onOld: () -> Unit,
+    onBack: () -> Unit,
+) {
+    DetailHeader(c, "自动分析", onBack)
+
+    SmallTitle(text = "开关")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "自动分析",
+            summary = "在聊天页自动出候选；关掉就只能手动点「识别」",
+            checked = cfg.enabled,
+            onCheckedChange = { save(cfg.copy(enabled = it)) },
+        )
+    }
+
+    SmallTitle(text = "节奏")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        StepperRow(c, "参考条数", cfg.ctx, 2, 20, 1) { save(cfg.copy(ctx = it)) }
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        StepperRow(c, "最短间隔", cfg.minIntervalSec, 0, 600, 5, suffix = "s") {
+            save(cfg.copy(minIntervalSec = it))
+        }
+    }
+
+    SmallTitle(text = "更多")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "白名单 / 敏感内容 / 温度", summary = "这些在旧界面里调", onClick = onOld)
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+@Composable
+private fun StepperRow(
+    c: Colors,
+    title: String,
+    value: Int,
+    min: Int,
+    max: Int,
+    step: Int,
+    suffix: String = "",
+    onChange: (Int) -> Unit,
+) {
+    BasicComponent(
+        title = title,
+        rightActions = {
+            Text(
+                "−",
+                fontSize = 20.sp,
+                color = c.primary,
+                modifier = Modifier
+                    .clickable { onChange((value - step).coerceAtLeast(min)) }
+                    .padding(horizontal = 10.dp),
+            )
+            Text(
+                "$value$suffix",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = c.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 42.dp),
+            )
+            Text(
+                "＋",
+                fontSize = 18.sp,
+                color = c.primary,
+                modifier = Modifier
+                    .clickable { onChange((value + step).coerceAtMost(max)) }
+                    .padding(horizontal = 10.dp),
+            )
+        },
+    )
 }
 
 @Composable
