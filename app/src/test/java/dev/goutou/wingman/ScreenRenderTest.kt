@@ -295,6 +295,24 @@ class ScreenRenderTest {
         capture("miuix-style")
     }
 
+    /** Miuix 二级页：接入与模型（三个输入框 + 保存）。 */
+    @Test
+    fun `Miuix 接入页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 4) {} }
+        rule.onNodeWithText("接入与模型").assertExists()
+        rule.onNodeWithText("接口").assertExists()
+        capture("miuix-endpoint")
+    }
+
+    /** Miuix 二级页：图片与 OCR（开关 + 三档）。 */
+    @Test
+    fun `Miuix 图片页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 5) {} }
+        rule.onNodeWithText("图片与 OCR").assertExists()
+        rule.onNodeWithText("只认字").assertExists()
+        capture("miuix-image")
+    }
+
     /**
      * 改条数/风格之后，**提示词页显示的那份文本也跟着变**。
      *

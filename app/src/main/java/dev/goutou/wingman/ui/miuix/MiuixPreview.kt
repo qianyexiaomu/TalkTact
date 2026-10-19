@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,9 @@ import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.config.GLASS_QUALITY_AUTO
 import dev.goutou.wingman.config.GLASS_QUALITY_HIGH
 import dev.goutou.wingman.config.GLASS_QUALITY_LOW
+import dev.goutou.wingman.config.IMAGE_MODE_OCR
+import dev.goutou.wingman.config.IMAGE_MODE_OCR_THEN_VISION
+import dev.goutou.wingman.config.IMAGE_MODE_VISION
 import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
 import dev.goutou.wingman.llm.MAX_REPLIES
 import dev.goutou.wingman.llm.REPLY_STYLES
@@ -57,6 +61,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.extra.SuperArrow
 import top.yukonga.miuix.kmp.extra.SuperSwitch
 import top.yukonga.miuix.kmp.theme.Colors
@@ -78,7 +83,7 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
 @Composable
 fun MiuixPreviewScreen(
     store: ConfigStore,
-    /** 打开时停在哪一页：0 = 首页标签，1 = 外观，2 = 自动分析。给截图测试用，正常调用不用传。 */
+    /** 打开时停在哪一页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片。给截图测试用。 */
     initialPage: Int = 0,
     // onBack 必须是**最后一个参数**：调用点是 `MiuixPreviewScreen(store) { ... }` 的尾随 lambda 写法，
     // 末尾一旦换成 Int，lambda 就绑不上去了。
@@ -88,7 +93,7 @@ fun MiuixPreviewScreen(
         val c = MiuixTheme.colorScheme
         var cfg by remember { mutableStateOf(store.load()) }
         var tab by remember { mutableIntStateOf(0) }
-        // 二级页：0 = 没有（底部导航那一层），1 = 外观，2 = 自动分析
+        // 二级页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片
         var page by remember { mutableIntStateOf(initialPage) }
         // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
         val save: (ConfigData) -> Unit = { next ->
@@ -153,7 +158,9 @@ fun MiuixPreviewScreen(
                     when (page) {
                         1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
                         2 -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
-                        else -> ReplyStylePage(c, cfg, toggleStyle, onOld = onBack) { page = 0 }
+                        3 -> ReplyStylePage(c, cfg, toggleStyle, onOld = onBack) { page = 0 }
+                        4 -> EndpointPage(c, cfg, save, onOld = onBack) { page = 0 }
+                        else -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
                     }
                 }
             }
@@ -386,7 +393,7 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(title = "外观与背景", summary = "玻璃强度 / 背景图 / 深色", onClick = { onOpenPage(1) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = onOld)
+        SuperArrow(title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = { onOpenPage(4) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = { onOpenPage(3) })
     }
@@ -396,7 +403,7 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "会话白名单", summary = "只在这些聊天里工作", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = onOld)
+        SuperArrow(title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = { onOpenPage(5) })
     }
     SmallTitle(text = "维护")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
@@ -407,7 +414,7 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
 
     Spacer(Modifier.height(18.dp))
     Text(
-        "外观、自动分析已经是 Miuix 页面；其余条目暂时回旧界面（逐页迁移中）。",
+        "外观 / 自动分析 / 回复风格 / 接入 / 图片 已经是 Miuix 页面；白名单、备份、诊断暂时回旧界面。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 28.dp),
@@ -578,6 +585,148 @@ private fun ReplyStylePage(
         SuperArrow(title = "自定义风格 / 按联系人单独设置", summary = "这些在旧界面里调", onClick = onOld)
     }
     Spacer(Modifier.height(24.dp))
+}
+
+/**
+ * 接入与模型。
+ *
+ * 这三个是**草稿型**输入（改到一半的地址不该立刻生效），所以本地先存一份，
+ * 变了才出现「保存」；其它页（档位/开关）都是点一下立刻落盘 —— 两类交互不能混。
+ */
+@Composable
+private fun EndpointPage(
+    c: Colors,
+    cfg: ConfigData,
+    save: (ConfigData) -> Unit,
+    onOld: () -> Unit,
+    onBack: () -> Unit,
+) {
+    DetailHeader(c, "接入与模型", onBack)
+
+    var url by remember(cfg.baseUrl) { mutableStateOf(cfg.baseUrl) }
+    var key by remember(cfg.apiKey) { mutableStateOf(cfg.apiKey) }
+    var model by remember(cfg.model) { mutableStateOf(cfg.model) }
+    val dirty = url != cfg.baseUrl || key != cfg.apiKey || model != cfg.model
+
+    SmallTitle(text = "接口")
+    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextField(
+            value = url,
+            onValueChange = { url = it },
+            label = "接口地址（OpenAI 兼容，写到 /v1）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextField(
+            value = key,
+            onValueChange = { key = it },
+            label = "API Key",
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextField(
+            value = model,
+            onValueChange = { model = it },
+            label = "模型",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+
+    Spacer(Modifier.height(14.dp))
+    PrimaryButton(
+        text = if (dirty) "保存" else "已保存",
+        enabled = dirty,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        save(cfg.copy(baseUrl = url.trim(), apiKey = key.trim(), model = model.trim()))
+    }
+
+    SmallTitle(text = "更多")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "服务商预设 / 接口形态 / 第二套接口", summary = "这些在旧界面里调", onClick = onOld)
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/** 图片与 OCR：一个总开关 + 三档「图怎么交给模型」。 */
+@Composable
+private fun ImagePage(
+    c: Colors,
+    cfg: ConfigData,
+    store: ConfigStore,
+    onOld: () -> Unit,
+    onBack: () -> Unit,
+) {
+    DetailHeader(c, "图片与 OCR", onBack)
+
+    SmallTitle(text = "识别")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "本机识图（OCR）",
+            summary = "不开的话图片消息只剩一个占位文字",
+            checked = cfg.ocrEnabled,
+            onCheckedChange = { store.saveOcr(it) },
+        )
+    }
+
+    SmallTitle(text = "图片怎么交给模型")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        val options = listOf(
+            Triple("只认字", "图片不出手机，只发识别出来的文字", IMAGE_MODE_OCR),
+            Triple("认不出才发图", "字太少或没字时，才把图本体发出去", IMAGE_MODE_OCR_THEN_VISION),
+            Triple("总是发图", "每条带图的聊天都把图发给接口，最准也最费", IMAGE_MODE_VISION),
+        )
+        options.forEachIndexed { i, opt ->
+            val label = opt.first
+            val desc = opt.second
+            val id = opt.third
+            BasicComponent(
+                title = label,
+                summary = desc,
+                onClick = { store.saveImageMode(id) },
+                rightActions = {
+                    if (cfg.imageMode == id) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+            if (i != options.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+
+    SmallTitle(text = "更多")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "识图状态 / 最近一次", summary = "这些在旧界面里调", onClick = onOld)
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/** 主按钮（HyperOS 那种实心圆角）。Miuix 0.2.9 的 Button 签名没把握，先用 Box 画一个稳的。 */
+@Composable
+private fun PrimaryButton(
+    text: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondary)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (enabled) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
+    }
 }
 
 @Composable
