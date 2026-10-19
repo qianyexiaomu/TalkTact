@@ -128,6 +128,10 @@ private fun HomeTab(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -
     }
 
     SmallTitle(text = "运行状态")
+    // 正文颜色必须**跟着卡片底色走**：启用时卡是 primaryContainer、未启用换成 secondaryContainer，
+    // 两种情况的前景色不一样。之前这里写死 onPrimaryContainer，未启用时就是「灰底浅字」，
+    // 截图里几乎看不清 —— 这种错在代码里一眼扫不出来，只能靠看图才发现。
+    val fg = if (active) c.onPrimaryContainer else c.onSecondaryContainer
     Card(
         modifier = Modifier.padding(horizontal = 12.dp),
         color = if (active) c.primaryContainer else c.secondaryContainer,
@@ -145,20 +149,20 @@ private fun HomeTab(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -
                     if (active) "运行中" else "未启用",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (active) c.onPrimaryContainer else c.onSecondaryContainer,
+                    color = fg,
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text("模型　${cfg.model.ifBlank { "还没填" }}", fontSize = 14.sp, color = c.onPrimaryContainer)
+            Text("模型　${cfg.model.ifBlank { "还没填" }}", fontSize = 14.sp, color = fg)
             Spacer(Modifier.height(4.dp))
             Text(
                 "自动分析　${if (cfg.enabled) "开" else "关"}　·　回复风格 $styles 种",
                 fontSize = 14.sp,
-                color = c.onPrimaryContainer,
+                color = fg,
             )
             if (!active) {
                 Spacer(Modifier.height(6.dp))
-                Text("到 LSPosed 里勾选微信，再强行停止微信重开", fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+                Text("到 LSPosed 里勾选微信，再强行停止微信重开", fontSize = 12.sp, color = fg)
             }
         }
     }
