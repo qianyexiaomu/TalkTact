@@ -96,6 +96,18 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.core:core-ktx:1.13.1")
 
+    /**
+     * Miuix：仿 HyperOS / MIUI 的 Compose 组件库（KernelSU 新版界面用的就是它）。
+     *
+     * ⚠️ **版本被工具链锁死**：本项目是 Kotlin 2.0.20 + Compose BOM 2024.09（Compose 1.7.x），
+     * 而 miuix 从 0.3.0 起就要求 Kotlin 2.0.21、0.4.0 起要 2.1.20、0.8.x 要 2.3.x ——
+     * Kotlin 读不了「比自己新」的元数据，直接加最新版会编译失败。
+     * 0.2.9 是**最后一版用 Kotlin 2.0.20 编译的**（依赖 compose-foundation 1.7.0-beta02），
+     * 所以想用最新 miuix，必须先把 Kotlin / Compose / AGP 一起升上去，而不是改这一行。
+     */
+    implementation("top.yukonga.miuix.kmp:miuix:0.2.9")
+
+
     // 「每天中午 12:00 提炼说话风格」用它的周期任务：App 没开、手机重启过都照跑，
     // 也不必申请精确闹钟权限（AlarmManager 那条路 Android 12+ 要额外权限）
     implementation("androidx.work:work-runtime-ktx:2.9.1")

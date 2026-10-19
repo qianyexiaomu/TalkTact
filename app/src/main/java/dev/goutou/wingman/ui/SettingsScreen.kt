@@ -52,6 +52,8 @@ fun SettingsScreen(
     ui: ConfigData,
     onUi: (ConfigData) -> Unit,
     onOpenAdvanced: () -> Unit,
+    /** 打开 Miuix 新版界面（预览）。给默认值，老的调用点/测试不用动。 */
+    onOpenMiuix: () -> Unit = {},
 ) {
     val palette = LocalPalette.current
     val context = LocalContext.current
@@ -224,6 +226,24 @@ fun SettingsScreen(
                 fontSize = TextSize.body,
                 color = palette.sub,
             )
+        }
+
+        // 新版界面（Miuix）的入口。**只是预览**：真正的迁移是逐页替换，
+        // 在做完之前旧界面必须一直能用 —— 所以这里是一个按钮，而不是替换掉整套导航。
+        SectionCard(d.glassAlpha, "新版界面（实验）") {
+            Spacer(Modifier.height(Space.sm))
+            Text(
+                "用 Miuix（HyperOS 风格，KernelSU 那套组件）重做的新界面。" +
+                    "先做出来看看观感：首页照 KSU 的样子，设置会拆成分页。",
+                fontSize = TextSize.body,
+                color = palette.sub,
+            )
+            Spacer(Modifier.height(Space.md))
+            OutlinedButton(
+                onClick = onOpenMiuix,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(RadiusR2),
+            ) { Text("打开 Miuix 预览") }
         }
     }
 }

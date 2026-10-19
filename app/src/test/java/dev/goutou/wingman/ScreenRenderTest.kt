@@ -36,6 +36,7 @@ import dev.goutou.wingman.ui.SettingsScreen
 import dev.goutou.wingman.ui.TrialScreen
 import dev.goutou.wingman.ui.drawBackdropArt
 import dev.goutou.wingman.ui.rememberBackdrop
+import dev.goutou.wingman.ui.miuix.MiuixPreviewScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -251,6 +252,20 @@ class ScreenRenderTest {
         page(dark = true) { AdvancedScreen(store, store.load(), {}, {}, {}, {}) }
         rule.onNodeWithText("生成模式").assertExists()
         capture("advanced-dark")
+    }
+
+    /**
+     * Miuix 新版界面（预览）。
+     *
+     * 不套 `page {}`：那层是给玻璃卡片准备的渐变背景，Miuix 自带 `MiuixTheme` 的背景色，
+     * 套上去反而会看到「玻璃底 + Miuix 卡片」两层。
+     */
+    @Test
+    fun `Miuix 预览页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store) {} }
+        rule.onNodeWithText("微信军师").assertExists()
+        rule.onNodeWithText("运行状态").assertExists()
+        capture("miuix-home")
     }
 
     /**

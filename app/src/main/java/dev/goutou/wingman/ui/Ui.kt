@@ -103,6 +103,7 @@ import dev.goutou.wingman.ModuleStatus
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.RemoteSync
 import dev.goutou.wingman.config.ConfigStore
+import dev.goutou.wingman.ui.miuix.MiuixPreviewScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -1244,11 +1245,14 @@ fun App(store: ConfigStore) {
                                 onSaved = { ui = store.load() },
                                 onBack = { settingsPage = 1 },
                             )
+                            // Miuix 新版界面（预览）：从设置页最后那张卡进去，返回回到设置
+                            4 -> MiuixPreviewScreen(store) { settingsPage = 0 }
                             else -> SettingsScreen(
                                 store = store,
                                 ui = ui,
                                 onUi = { ui = it },
                                 onOpenAdvanced = { settingsPage = 1 },
+                                onOpenMiuix = { settingsPage = 4 },
                             )
                         }
                     }
