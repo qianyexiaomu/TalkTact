@@ -268,6 +268,24 @@ class ScreenRenderTest {
         capture("miuix-home")
     }
 
+    /** Miuix 二级页：外观（玻璃三档）。 */
+    @Test
+    fun `Miuix 外观页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, {}, initialPage = 1) }
+        rule.onNodeWithText("外观与背景").assertExists()
+        rule.onNodeWithText("玻璃效果").assertExists()
+        capture("miuix-appearance")
+    }
+
+    /** Miuix 二级页：自动分析（开关 + 步进器）。 */
+    @Test
+    fun `Miuix 自动分析页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, {}, initialPage = 2) }
+        rule.onNodeWithText("自动分析").assertExists()
+        rule.onNodeWithText("参考条数").assertExists()
+        capture("miuix-auto")
+    }
+
     /**
      * 改条数/风格之后，**提示词页显示的那份文本也跟着变**。
      *

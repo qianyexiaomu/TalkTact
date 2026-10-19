@@ -73,13 +73,18 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
  * 所以这里用 Miuix 的 surface 半透明 + 细描边 + 投影，深浅色都跟着主题走。
  */
 @Composable
-fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
+fun MiuixPreviewScreen(
+    store: ConfigStore,
+    onBack: () -> Unit,
+    /** 打开时停在哪一页：0 = 首页标签，1 = 外观，2 = 自动分析。给截图测试用，正常调用不用传。 */
+    initialPage: Int = 0,
+) {
     MiuixTheme(colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
         val c = MiuixTheme.colorScheme
         var cfg by remember { mutableStateOf(store.load()) }
         var tab by remember { mutableIntStateOf(0) }
         // 二级页：0 = 没有（底部导航那一层），1 = 外观，2 = 自动分析
-        var page by remember { mutableIntStateOf(0) }
+        var page by remember { mutableIntStateOf(initialPage) }
         // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
         val save: (ConfigData) -> Unit = { next ->
             store.save(next)
