@@ -131,13 +131,16 @@ private fun HomeTab(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -
     }
 
     SmallTitle(text = "运行状态")
-    // 正文颜色必须**跟着卡片底色走**：启用时卡是 primaryContainer、未启用换成 secondaryContainer，
+    // 正文颜色必须**跟着卡片底色走**：启用时卡是 primaryContainer、未启用是白卡，
     // 两种情况的前景色不一样。之前这里写死 onPrimaryContainer，未启用时就是「灰底浅字」，
     // 截图里几乎看不清 —— 这种错在代码里一眼扫不出来，只能靠看图才发现。
-    val fg = if (active) c.onPrimaryContainer else c.onSecondaryContainer
+    //
+    // 未启用故意**不用 secondaryContainer**：那色是给「有内容但次要」的容器用的，
+    // 压在渐变背景上会和底色混成一块浑浊的橄榄色（试过，很难看）。白卡 + 深字最干净。
+    val fg = if (active) c.onPrimaryContainer else c.onSurface
     Card(
         modifier = Modifier.padding(horizontal = 12.dp),
-        color = if (active) c.primaryContainer else c.secondaryContainer,
+        color = if (active) c.primaryContainer else c.surface,
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
