@@ -330,6 +330,22 @@ class ScreenRenderTest {
         capture("miuix-mentor")
     }
 
+    /** Miuix 标签页：试一试。 */
+    @Test
+    fun `Miuix 试一试页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialTab = 3) {} }
+        rule.onNodeWithText("聊天内容").assertExists()
+        capture("miuix-trial")
+    }
+
+    /** Miuix 二级页：关于（从设置进）。 */
+    @Test
+    fun `Miuix 关于页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 7) {} }
+        rule.onNodeWithText("版本").assertExists()
+        capture("miuix-about")
+    }
+
     /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
     @Test
     fun `Miuix 角色详情能渲染`() {

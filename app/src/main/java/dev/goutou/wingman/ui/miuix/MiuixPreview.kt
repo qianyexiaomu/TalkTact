@@ -26,19 +26,23 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +51,10 @@ import androidx.compose.ui.unit.sp
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.config.Role
+import dev.goutou.wingman.llm.Graded
+import dev.goutou.wingman.llm.LlmClient
+import dev.goutou.wingman.llm.Suggestion
+import dev.goutou.wingman.llm.gradedWaitMs
 import dev.goutou.wingman.config.SELF_ROLE_KEY
 import dev.goutou.wingman.config.GLASS_QUALITY_AUTO
 import dev.goutou.wingman.config.GLASS_QUALITY_HIGH
@@ -61,6 +69,8 @@ import dev.goutou.wingman.llm.applyReplyPlan
 import dev.goutou.wingman.llm.MAX_REPLIES
 import dev.goutou.wingman.llm.REPLY_STYLES
 import dev.goutou.wingman.llm.toggledStyleIds
+import dev.goutou.wingman.wechat.ChatMsg
+import dev.goutou.wingman.wechat.Sensitive
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
@@ -78,6 +88,9 @@ import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import top.yukonga.miuix.kmp.theme.lightColorScheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.utils.HorizontalDivider
 
 /**
@@ -147,8 +160,8 @@ fun MiuixPreviewScreen(
                         0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
                         1 -> MentorTab(c, store, cfg, save)
                         2 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
-                        3 -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
-                        else -> AboutTab(c, store)
+                        3 -> TrialTab(c, store)
+                        else -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
                     }
                 }
 
@@ -157,8 +170,8 @@ fun MiuixPreviewScreen(
                         "首页" to Icons.Filled.Home,
                         "军师" to Icons.Filled.Edit,
                         "角色" to Icons.Filled.Person,
+                        "试一试" to Icons.Filled.PlayArrow,
                         "设置" to Icons.Filled.Settings,
-                        "关于" to Icons.Filled.Info,
                     ),
                     selected = tab,
                     modifier = Modifier
@@ -181,7 +194,8 @@ fun MiuixPreviewScreen(
                         3 -> ReplyStylePage(c, cfg, toggleStyle, onOld = onBack) { page = 0 }
                         4 -> EndpointPage(c, cfg, save, onOld = onBack) { page = 0 }
                         5 -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
-                        else -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
+                        6 -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
+                        else -> AboutPage(c, store) { page = 0 }
                     }
                 }
             }
@@ -453,6 +467,163 @@ private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (Con
     Spacer(Modifier.height(24.dp))
 }
 
+/**
+ * 试一试：粘一段聊天，直接打接口看输出。
+ *
+ * 逻辑**照搬**旧页面（分级模式走 `Graded.run` 两路并行、直通走 `LlmClient.analyze`），
+ * 没有另写一套 —— 这页的意义就是"验证接口和提示词"，换个实现就失去意义了。
+ * 结果点一下复制，省得手动选中。
+ */
+@Composable
+private fun TrialTab(c: Colors, store: ConfigStore) {
+    val clipboard = LocalClipboardManager.current
+    var input by remember { mutableStateOf("对方: 在吗\n我: 在\n对方: 周末有空吗，想约你吃个饭") }
+    var suggestion by remember { mutableStateOf<Suggestion?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val hits = remember(input) { Sensitive.hits(input) }
+
+    Row(
+        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("试一试", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
+            Spacer(Modifier.height(2.dp))
+            Text("粘一段聊天，直接看接口会写出什么", fontSize = 13.sp, color = c.onBackgroundVariant)
+        }
+    }
+
+    SmallTitle(text = "聊天内容")
+    Column(Modifier.padding(horizontal = 12.dp)) {
+        TextField(
+            value = input,
+            onValueChange = { input = it },
+            label = "每行一句，以「我:」或「对方:」开头",
+            minLines = 5,
+            maxLines = 9,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    if (hits.isNotEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "⚠ 含敏感内容：${hits.joinToString("、")}（微信里会先问你一次）",
+            fontSize = 12.sp,
+            color = Color(0xFFC97A00),
+            modifier = Modifier.padding(horizontal = 26.dp),
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+    PrimaryButton(
+        text = if (loading) "思考中…" else "生成候选回复",
+        enabled = !loading,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        loading = true
+        error = null
+        info = null
+        suggestion = null
+        val conf = store.load()
+        scope.launch {
+            try {
+                val msgs = input.lines().filter { it.isNotBlank() }.map {
+                    val me = it.startsWith("我:") || it.startsWith("我：")
+                    ChatMsg(me, it.substringAfter(':').substringAfter('：').trim().ifEmpty { it })
+                }
+                if (conf.graded) {
+                    val out = withContext(Dispatchers.IO) {
+                        Graded.run(
+                            replyClient = LlmClient(conf),
+                            riskClient = LlmClient(conf.riskEndpoint(), second = true),
+                            skillPrompt = conf.prompt,
+                            msgs = msgs,
+                            roleContext = null,
+                            waitMs = gradedWaitMs(conf.probeReplyMs, conf.probeRiskMs),
+                            plan = conf.replyPlan,
+                        )
+                    }
+                    suggestion = out.suggestion
+                    if (out.totalTokens > 0) store.addUsage(out.totalTokens)
+                    info = "${out.millis}ms · ${out.totalTokens} token · 分级模式（两路并行）"
+                    if (out.suggestion == null) {
+                        error = "两路都没跑通：风险一路 ${out.riskError ?: "-"}；写回复一路 ${out.replyError ?: "-"}"
+                    }
+                } else {
+                    val result = withContext(Dispatchers.IO) { LlmClient(conf).analyze(msgs) }
+                    suggestion = result.suggestion
+                    if (result.totalTokens > 0) store.addUsage(result.totalTokens)
+                    info = "${result.millis}ms · ${result.totalTokens} token · ${result.model}"
+                }
+            } catch (t: Throwable) {
+                error = t.message
+            }
+            loading = false
+        }
+    }
+
+    error?.let { msg ->
+        Spacer(Modifier.height(12.dp))
+        Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                Text("出错了", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFD64545))
+                Spacer(Modifier.height(4.dp))
+                Text(msg, fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        }
+    }
+
+    info?.let { msg ->
+        Spacer(Modifier.height(10.dp))
+        Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                Text(msg, fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        }
+    }
+
+    suggestion?.let { s ->
+        SmallTitle(text = "判断")
+        Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+            BasicComponent(
+                title = "意图",
+                summary = s.intent.ifBlank { "—" },
+            )
+            HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            BasicComponent(
+                title = "风险",
+                summary = s.note.ifBlank { null },
+                rightActions = { Text(s.risk, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = c.onSurface) },
+            )
+        }
+
+        SmallTitle(text = "候选回复（点一下复制）")
+        s.replies.forEachIndexed { i, r ->
+            Spacer(Modifier.height(8.dp))
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .clip(RoundedCornerShape(RadiusR2))
+                    .clickable { clipboard.setText(AnnotatedString(r.text)) },
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                    Text(
+                        "第 ${i + 1} 条${if (s.best == i) " · 推荐" else ""}",
+                        fontSize = 11.sp,
+                        color = if (s.best == i) c.primary else c.onSurfaceVariantSummary,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(r.text, fontSize = 14.sp, color = c.onSurface)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
 @Composable
 private fun RolesTab(c: Colors, store: ConfigStore, onOpen: (String) -> Unit) {
     var tick by remember { mutableIntStateOf(0) }
@@ -672,6 +843,8 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     }
     SmallTitle(text = "维护")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "关于", summary = "版本 / 风控说明", onClick = { onOpenPage(7) })
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = onOld)
@@ -687,11 +860,9 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
 }
 
 @Composable
-private fun AboutTab(c: Colors, store: ConfigStore) {
+private fun AboutPage(c: Colors, store: ConfigStore, onBack: () -> Unit) {
     val context = LocalContext.current
-    Row(Modifier.fillMaxWidth().padding(start = 28.dp, end = 24.dp, top = 22.dp)) {
-        Text("关于", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
-    }
+    DetailHeader(c, "关于", onBack)
     SmallTitle(text = "版本")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         BasicComponent(title = "TalkTact", rightActions = { Text(appVersion(context), fontSize = 14.sp) })
