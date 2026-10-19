@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -117,7 +116,8 @@ fun MiuixPreviewScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .statusBarsPadding()
+                        // 不加 statusBarsPadding：外层 App() 的 Column 已经有了一次，
+                        // 这里再加就是**双重内边距**（真机上标题会离状态栏特别远）。
                         // 给底部导航条留位置：不留的话最后一张卡会被压在半透明玻璃底下
                         .padding(bottom = 108.dp),
                 ) {
@@ -148,7 +148,6 @@ fun MiuixPreviewScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .statusBarsPadding()
                         .padding(bottom = 28.dp),
                 ) {
                     when (page) {
