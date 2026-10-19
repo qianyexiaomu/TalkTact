@@ -287,6 +287,14 @@ class ScreenRenderTest {
         capture("miuix-auto")
     }
 
+    /** Miuix 二级页：回复风格（多选）。 */
+    @Test
+    fun `Miuix 回复风格页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 3) {} }
+        rule.onNodeWithText("勾几种就写几条").assertExists()
+        capture("miuix-style")
+    }
+
     /**
      * 改条数/风格之后，**提示词页显示的那份文本也跟着变**。
      *

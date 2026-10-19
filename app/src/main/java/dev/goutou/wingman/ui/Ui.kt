@@ -1257,17 +1257,22 @@ fun App(store: ConfigStore) {
                         }
                     }
                 }
-                NavBar(
-                    tab = tab,
-                    health = health,
-                    glassAlpha = ui.glassAlpha,
-                    modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp),
-                ) { next ->
-                    // 离开这一栏就把二级页收掉：切走再回来应该回到列表，而不是停在上次那个二级页；
-                    // 点自己这一栏也当成「退出二级页」。
-                    if (next != TAB_ROLES || next == tab) roleOpen = null
-                    if (next != TAB_SETTINGS || next == tab) settingsPage = 0
-                    tab = next
+                // ⚠️ 新版界面（Miuix）**自带底部导航条**，这里必须把旧的藏起来。
+                // 之前没藏，两条导航叠在屏幕底部 —— 截图里那坨「图标压图标」就是它。
+                val inMiuix = tab == TAB_SETTINGS && settingsPage == 4
+                if (!inMiuix) {
+                    NavBar(
+                        tab = tab,
+                        health = health,
+                        glassAlpha = ui.glassAlpha,
+                        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(14.dp),
+                    ) { next ->
+                        // 离开这一栏就把二级页收掉：切走再回来应该回到列表，而不是停在上次那个二级页；
+                        // 点自己这一栏也当成「退出二级页」。
+                        if (next != TAB_ROLES || next == tab) roleOpen = null
+                        if (next != TAB_SETTINGS || next == tab) settingsPage = 0
+                        tab = next
+                    }
                 }
             }
         }

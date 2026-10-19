@@ -46,6 +46,10 @@ import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.config.GLASS_QUALITY_AUTO
 import dev.goutou.wingman.config.GLASS_QUALITY_HIGH
 import dev.goutou.wingman.config.GLASS_QUALITY_LOW
+import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
+import dev.goutou.wingman.llm.MAX_REPLIES
+import dev.goutou.wingman.llm.REPLY_STYLES
+import dev.goutou.wingman.llm.toggledStyleIds
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
@@ -90,6 +94,14 @@ fun MiuixPreviewScreen(
         // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
         val save: (ConfigData) -> Unit = { next ->
             store.save(next)
+            cfg = store.load()
+        }
+        // 风格勾选规则**必须**走 llm/toggledStyleIds：新点的一定留下、位置不够让末尾、
+        // 点掉最后一个 = 保持现状。在这里另写一遍 = 迟早和旧界面对不上。
+        val toggleStyle: (String) -> Unit = { id ->
+            val known = REPLY_STYLES.map { it.id }.toSet() + cfg.replyCustomStyles.map { it.id }
+            val base = cfg.replyStyleIds.ifEmpty { DEFAULT_STYLE_IDS }
+            store.saveReplyPlan(toggledStyleIds(base, id, MAX_REPLIES, known))
             cfg = store.load()
         }
 
@@ -141,7 +153,8 @@ fun MiuixPreviewScreen(
                 ) {
                     when (page) {
                         1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
-                        else -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
+                        2 -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
+                        else -> ReplyStylePage(c, cfg, toggleStyle, onOld = onBack) { page = 0 }
                     }
                 }
             }
@@ -376,7 +389,7 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = onOld)
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = onOld)
+        SuperArrow(title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = { onOpenPage(3) })
     }
     SmallTitle(text = "微信内")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
@@ -526,6 +539,44 @@ private fun AutoAnalyzePage(
     SmallTitle(text = "更多")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(title = "白名单 / 敏感内容 / 温度", summary = "这些在旧界面里调", onClick = onOld)
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/** 回复风格：内置风格多选。勾几种就写几条（条数是从勾选数派生的，没有单独的「条数」选项）。 */
+@Composable
+private fun ReplyStylePage(
+    c: Colors,
+    cfg: ConfigData,
+    onToggle: (String) -> Unit,
+    onOld: () -> Unit,
+    onBack: () -> Unit,
+) {
+    DetailHeader(c, "回复风格", onBack)
+
+    // 「亮着的」= **显式勾选**那一份（replyStyleIds），不是 plan.styles ——
+    // 后者掺了「为凑够条数自动补齐」的风格，拿它当选中态会出现「点了没反应」。
+    val chosen = cfg.replyStyleIds.ifEmpty { DEFAULT_STYLE_IDS }.toSet()
+
+    SmallTitle(text = "勾几种就写几条")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        REPLY_STYLES.forEachIndexed { i, st ->
+            BasicComponent(
+                title = st.label,
+                onClick = { onToggle(st.id) },
+                rightActions = {
+                    if (st.id in chosen) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+            if (i != REPLY_STYLES.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+
+    SmallTitle(text = "更多")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "自定义风格 / 按联系人单独设置", summary = "这些在旧界面里调", onClick = onOld)
     }
     Spacer(Modifier.height(24.dp))
 }
