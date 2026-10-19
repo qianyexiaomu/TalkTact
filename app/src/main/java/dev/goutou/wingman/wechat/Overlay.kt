@@ -104,11 +104,11 @@ internal class Panel(private val a: Activity) {
      * 跟 App 里被吐槽的「一圈玻璃围着一块白板」是同一个毛病。深色场景本来就够暗，维持原值。
      */
     private val colorCard = if (night) 0xF21B1A22.toInt() else 0xB8FFFFFF.toInt()
-    private val colorStroke = if (night) 0x557C3AED.toInt() else 0x447C3AED.toInt()
-    private val colorMain = if (night) 0xFFEDEAF5.toInt() else 0xFF1C1B22.toInt()
-    private val colorSub = if (night) 0xFF9A96A8.toInt() else 0xFF6E6A7C.toInt()
-    private val colorReply = if (night) 0xFF2A2440.toInt() else 0xFFEDE7FA.toInt()
-    private val colorAccent = 0xFF7C3AED.toInt()
+    private val colorStroke = if (night) 0x553482FF.toInt() else 0x443482FF.toInt()
+    private val colorMain = if (night) 0xFFEFEFEF.toInt() else 0xFF1B1B1F.toInt()
+    private val colorSub = if (night) 0xFF9C9C9C.toInt() else 0xFF6E6E73.toInt()
+    private val colorReply = if (night) 0xFF1F2836.toInt() else 0xFFEAF2FF.toInt()
+    private val colorAccent = 0xFF3482FF.toInt()
     private val colorWarn = 0xFFE8A317.toInt()
     /** 「中」当实底用的深一档琥珀（白字压在上面要够对比）。 */
     private val colorWarnSolid = 0xFFC97A00.toInt()
@@ -377,7 +377,7 @@ internal class Panel(private val a: Activity) {
         chip.textSize = 13f
         chip.setTextColor(0xFFFFFFFF.toInt())
         chip.setPadding(dp(14), dp(8), dp(14), dp(8))
-        chip.background = roundRect(0xE67C3AED.toInt(), 18)
+        chip.background = roundRect(0xE63482FF.toInt(), 18)
         chip.elevation = dp(6).toFloat()
         chip.visibility = View.GONE
         chip.setOnClickListener { onChipClick() }
@@ -1673,7 +1673,7 @@ internal class Panel(private val a: Activity) {
         // 出错和提示这类「你必须看一眼」的事，直接摊开，不折叠
         setChip(
             if (isError) "⚠ 军师出错 · 点开看" else "军师 · 点开看",
-            if (isError) 0xE6D64545.toInt() else 0xE67C3AED.toInt(),
+            if (isError) 0xE6D64545.toInt() else 0xE63482FF.toInt(),
         )
         if (changed) setExpanded(true, if (isError) "出错，要你看一眼" else "提示，要你看一眼")
     }
@@ -1726,7 +1726,7 @@ internal class Panel(private val a: Activity) {
     }
 
     /** 折叠按钮上的文案 + 底色（低绿 / 中黄 / 高红，一眼看出这条多危险）。 */
-    private fun setChip(text: String, color: Int = 0xE67C3AED.toInt()) {
+    private fun setChip(text: String, color: Int = 0xE63482FF.toInt()) {
         chipText = text
         chip.text = text
         chip.background = roundRect(color, 18)
