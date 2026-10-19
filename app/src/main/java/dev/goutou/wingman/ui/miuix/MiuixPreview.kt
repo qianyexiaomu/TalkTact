@@ -23,7 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -43,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.ConfigStore
+import dev.goutou.wingman.config.Role
+import dev.goutou.wingman.config.SELF_ROLE_KEY
 import dev.goutou.wingman.config.GLASS_QUALITY_AUTO
 import dev.goutou.wingman.config.GLASS_QUALITY_HIGH
 import dev.goutou.wingman.config.GLASS_QUALITY_LOW
@@ -56,6 +59,7 @@ import dev.goutou.wingman.llm.toggledStyleIds
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
+import dev.goutou.wingman.ui.formatTime
 import dev.goutou.wingman.ui.moduleActive
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -83,8 +87,12 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
 @Composable
 fun MiuixPreviewScreen(
     store: ConfigStore,
-    /** 打开时停在哪一页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片。给截图测试用。 */
+    /** 打开时停在哪个标签：0 首页 / 1 角色 / 2 设置 / 3 关于。给截图测试用。 */
+    initialTab: Int = 0,
+    /** 打开时停在哪一页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片 / 6 角色详情。 */
     initialPage: Int = 0,
+    /** 配合 initialPage = 6：直接打开哪一份角色档案。 */
+    initialRoleKey: String? = null,
     // onBack 必须是**最后一个参数**：调用点是 `MiuixPreviewScreen(store) { ... }` 的尾随 lambda 写法，
     // 末尾一旦换成 Int，lambda 就绑不上去了。
     onBack: () -> Unit,
@@ -92,9 +100,11 @@ fun MiuixPreviewScreen(
     MiuixTheme(colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
         val c = MiuixTheme.colorScheme
         var cfg by remember { mutableStateOf(store.load()) }
-        var tab by remember { mutableIntStateOf(0) }
+        var tab by remember { mutableIntStateOf(initialTab) }
         // 二级页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片
         var page by remember { mutableIntStateOf(initialPage) }
+        // 打开的是哪一份角色档案（page == 6 时有效）
+        var roleKey by remember { mutableStateOf(initialRoleKey) }
         // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
         val save: (ConfigData) -> Unit = { next ->
             store.save(next)
@@ -128,7 +138,7 @@ fun MiuixPreviewScreen(
                 ) {
                     when (tab) {
                         0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
-                        1 -> StatusTab(c, store, cfg)
+                        1 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
                         2 -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
                         else -> AboutTab(c, store)
                     }
@@ -137,7 +147,7 @@ fun MiuixPreviewScreen(
                 MiuixGlassNavBar(
                     items = listOf(
                         "首页" to Icons.Filled.Home,
-                        "状态" to Icons.Filled.Pets,
+                        "角色" to Icons.Filled.Person,
                         "设置" to Icons.Filled.Settings,
                         "关于" to Icons.Filled.Info,
                     ),
@@ -160,7 +170,8 @@ fun MiuixPreviewScreen(
                         2 -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
                         3 -> ReplyStylePage(c, cfg, toggleStyle, onOld = onBack) { page = 0 }
                         4 -> EndpointPage(c, cfg, save, onOld = onBack) { page = 0 }
-                        else -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
+                        5 -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
+                        else -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
                     }
                 }
             }
@@ -330,54 +341,197 @@ private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier 
     }
 }
 
+/** 角色列表：每个人一份档案。点进去看详情、改关系。 */
 @Composable
-private fun StatusTab(c: Colors, store: ConfigStore, cfg: ConfigData) {
-    val (calls, tokens) = remember { store.usage() }
-    val active = moduleActive(store)
-    val styles = cfg.replyPlan.styles.size
+private fun RolesTab(c: Colors, store: ConfigStore, onOpen: (String) -> Unit) {
+    var tick by remember { mutableIntStateOf(0) }
+    val roles = remember(tick) { store.roles() }
 
     Row(
-        Modifier.fillMaxWidth().padding(start = 28.dp, end = 24.dp, top = 22.dp),
+        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("状态", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "角色",
+            fontSize = 30.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = c.onBackground,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "刷新",
+            fontSize = 14.sp,
+            color = c.primary,
+            modifier = Modifier.clickable { tick++ }.padding(8.dp),
+        )
     }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        "打开聊天页时，模块会把消息按联系人归到这里。写上「TA 是你什么人」「平时什么关系」，" +
+            "会连同攒下的记录一起拼进提示词。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
 
-    SmallTitle(text = "模块")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        BasicComponent(
-            title = "微信内模块",
-            summary = if (active) "已启用，微信侧已加载" else "未启用",
-            rightActions = {
+    SmallTitle(text = "档案")
+    if (roles.isEmpty()) {
+        Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(18.dp)) {
+                Text("还没有记录", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    if (active) "运行中" else "未启用",
-                    fontSize = 14.sp,
-                    color = if (active) c.primary else c.onSurfaceVariantSummary,
+                    "去微信里打开几个聊天页、各停两三秒，回来点「刷新」。",
+                    fontSize = 12.sp,
+                    color = c.onSurfaceVariantSummary,
                 )
-            },
+            }
+        }
+    } else {
+        Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+            roles.forEachIndexed { i, r ->
+                BasicComponent(
+                    title = r.name,
+                    summary = roleSummary(r),
+                    leftAction = { RoleAvatar(c, r) },
+                    onClick = { onOpen(r.key) },
+                    rightActions = {
+                        Text(
+                            if (r.lastAt > 0) formatTime(r.lastAt) else "—",
+                            fontSize = 12.sp,
+                            color = c.onSurfaceVariantSummary,
+                        )
+                    },
+                )
+                if (i != roles.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            }
+        }
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+private fun roleSummary(r: Role): String {
+    val parts = mutableListOf<String>()
+    if (r.relation.isNotBlank()) parts += r.relation
+    parts += "${r.msgs.size} 条记录"
+    if (r.note.isNotBlank()) parts += r.note.take(12)
+    return parts.joinToString(" · ")
+}
+
+@Composable
+private fun RoleAvatar(c: Colors, r: Role) {
+    val self = r.key == SELF_ROLE_KEY
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (self) c.primary.copy(alpha = 0.18f) else c.secondaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            r.name.take(1).ifBlank { "?" },
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (self) c.primary else c.onSecondaryContainer,
         )
-        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        BasicComponent(
-            title = "自动分析",
-            summary = "在聊天页自动出候选",
-            rightActions = {
-                Text(if (cfg.enabled) "开" else "关", fontSize = 14.sp, color = c.onSurfaceVariantSummary)
-            },
+    }
+}
+
+/** 单个角色的档案页：名字/关系/备注可改（草稿 + 保存），记录只读，底部是危险操作。 */
+@Composable
+private fun RoleDetailPage(c: Colors, store: ConfigStore, key: String?, onBack: () -> Unit) {
+    var tick by remember { mutableIntStateOf(0) }
+    val role = remember(key, tick) { key?.let { k -> store.roles().firstOrNull { it.key == k } } }
+
+    if (role == null) {
+        // 找不到（比如刚被删掉）：不在这里跳转（组合期做导航是副作用），只给一句话 + 返回
+        DetailHeader(c, "角色", onBack)
+        SmallTitle(text = "档案")
+        Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(18.dp)) {
+                Text("这份档案已经不在了", fontSize = 14.sp, color = c.onSurface)
+            }
+        }
+        return
+    }
+
+    DetailHeader(c, role.name, onBack)
+
+    var name by remember(role.name) { mutableStateOf(role.name) }
+    var relation by remember(role.relation) { mutableStateOf(role.relation) }
+    var note by remember(role.note) { mutableStateOf(role.note) }
+    val dirty = name != role.name || relation != role.relation || note != role.note
+
+    SmallTitle(text = "档案")
+    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextField(
+            value = name,
+            onValueChange = { name = it },
+            label = "名字（只改显示，不影响匹配）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
         )
-        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        TextField(
+            value = relation,
+            onValueChange = { relation = it },
+            label = "TA 是你什么人（例：同事 / 客户）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextField(
+            value = note,
+            onValueChange = { note = it },
+            label = "平时的关系 / 备注",
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    Spacer(Modifier.height(14.dp))
+    PrimaryButton(
+        text = if (dirty) "保存" else "已保存",
+        enabled = dirty,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        if (name.trim() != role.name) store.renameRole(role.key, name.trim())
+        store.setRoleProfile(role.key, relation.trim(), note.trim())
+        tick++
+    }
+
+    SmallTitle(text = "聊天记录")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         BasicComponent(
-            title = "模型",
-            summary = cfg.model.ifBlank { "还没填" },
-            rightActions = { Text("$styles 种风格", fontSize = 14.sp, color = c.onSurfaceVariantSummary) },
+            title = "共 ${role.msgs.size} 条",
+            summary = if (role.lastAt > 0) "最近一次 ${formatTime(role.lastAt)}" else "还没有记录",
         )
     }
 
-    SmallTitle(text = "用量")
+    SmallTitle(text = "危险操作")
+    var confirmDelete by remember { mutableStateOf(false) }
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        BasicComponent(title = "调用次数", rightActions = { Text("$calls", fontSize = 15.sp) })
+        BasicComponent(
+            title = "清空聊天记录",
+            summary = "档案保留，只删记录",
+            onClick = {
+                store.clearRoleMsgs(role.key)
+                tick++
+            },
+        )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        BasicComponent(title = "累计 tokens", rightActions = { Text(tokens.toString(), fontSize = 15.sp) })
+        BasicComponent(
+            title = if (confirmDelete) "再点一次确认删除" else "删除这个角色",
+            titleColor = Color(0xFFD64545),
+            summary = if (confirmDelete) "删掉之后记录也没了，不能恢复" else null,
+            onClick = {
+                if (confirmDelete) {
+                    store.removeRole(role.key)
+                    onBack()
+                } else {
+                    confirmDelete = true
+                }
+            },
+        )
     }
+    Spacer(Modifier.height(24.dp))
 }
 
 @Composable

@@ -313,6 +313,28 @@ class ScreenRenderTest {
         capture("miuix-image")
     }
 
+    /** Miuix 标签页：角色列表。 */
+    @Test
+    fun `Miuix 角色页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialTab = 1) {} }
+        rule.onNodeWithText("档案").assertExists()
+        capture("miuix-roles")
+    }
+
+    /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
+    @Test
+    fun `Miuix 角色详情能渲染`() {
+        rule.setContent {
+            MiuixPreviewScreen(
+                store,
+                initialPage = 6,
+                initialRoleKey = dev.goutou.wingman.config.SELF_ROLE_KEY,
+            ) {}
+        }
+        rule.onNodeWithText("危险操作").assertExists()
+        capture("miuix-role-detail")
+    }
+
     /**
      * 改条数/风格之后，**提示词页显示的那份文本也跟着变**。
      *
