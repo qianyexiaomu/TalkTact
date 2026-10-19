@@ -271,7 +271,7 @@ class ScreenRenderTest {
     /** Miuix 二级页：外观（玻璃三档）。 */
     @Test
     fun `Miuix 外观页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store, {}, initialPage = 1) }
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 1) {} }
         rule.onNodeWithText("外观与背景").assertExists()
         rule.onNodeWithText("玻璃效果").assertExists()
         capture("miuix-appearance")
@@ -280,8 +280,9 @@ class ScreenRenderTest {
     /** Miuix 二级页：自动分析（开关 + 步进器）。 */
     @Test
     fun `Miuix 自动分析页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store, {}, initialPage = 2) }
-        rule.onNodeWithText("自动分析").assertExists()
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 2) {} }
+        // 不要断言「自动分析」：页标题和开关标题都叫这个，会匹配到两个节点
+        rule.onNodeWithText("节奏").assertExists()
         rule.onNodeWithText("参考条数").assertExists()
         capture("miuix-auto")
     }

@@ -75,9 +75,11 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
 @Composable
 fun MiuixPreviewScreen(
     store: ConfigStore,
-    onBack: () -> Unit,
     /** 打开时停在哪一页：0 = 首页标签，1 = 外观，2 = 自动分析。给截图测试用，正常调用不用传。 */
     initialPage: Int = 0,
+    // onBack 必须是**最后一个参数**：调用点是 `MiuixPreviewScreen(store) { ... }` 的尾随 lambda 写法，
+    // 末尾一旦换成 Int，lambda 就绑不上去了。
+    onBack: () -> Unit,
 ) {
     MiuixTheme(colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
         val c = MiuixTheme.colorScheme
