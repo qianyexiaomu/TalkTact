@@ -103,7 +103,6 @@ import dev.goutou.wingman.ModuleStatus
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.RemoteSync
 import dev.goutou.wingman.config.ConfigStore
-import dev.goutou.wingman.ui.miuix.MiuixPreviewScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -1175,7 +1174,7 @@ private const val TAB_TRIAL = 3
 private const val TAB_SETTINGS = 4
 
 @Composable
-fun App(store: ConfigStore) {
+fun App(store: ConfigStore, onExitLegacy: () -> Unit = {}) {
     var tab by remember { mutableIntStateOf(0) }
     // 「角色」的二级页（打开了某个人）也放在这一层：切走 tab 再回来时能回到原位
     var roleOpen by remember { mutableStateOf<String?>(null) }
@@ -1245,22 +1244,18 @@ fun App(store: ConfigStore) {
                                 onSaved = { ui = store.load() },
                                 onBack = { settingsPage = 1 },
                             )
-                            // Miuix 新版界面（预览）：从设置页最后那张卡进去，返回回到设置
-                            4 -> MiuixPreviewScreen(store) { settingsPage = 0 }
                             else -> SettingsScreen(
                                 store = store,
                                 ui = ui,
                                 onUi = { ui = it },
                                 onOpenAdvanced = { settingsPage = 1 },
-                                onOpenMiuix = { settingsPage = 4 },
+                                // 新界面已经是根了：这张卡现在是「回到新界面」
+                                onOpenMiuix = onExitLegacy,
                             )
                         }
                     }
                 }
-                // ⚠️ 新版界面（Miuix）**自带底部导航条**，这里必须把旧的藏起来。
-                // 之前没藏，两条导航叠在屏幕底部 —— 截图里那坨「图标压图标」就是它。
-                val inMiuix = tab == TAB_SETTINGS && settingsPage == 4
-                if (!inMiuix) {
+                run {
                     NavBar(
                         tab = tab,
                         health = health,

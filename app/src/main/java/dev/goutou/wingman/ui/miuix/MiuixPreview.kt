@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -136,8 +137,9 @@ fun MiuixPreviewScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        // 不加 statusBarsPadding：外层 App() 的 Column 已经有了一次，
-                        // 这里再加就是**双重内边距**（真机上标题会离状态栏特别远）。
+                        // 新界面是**根**了（RootScreen 直接渲染它），状态栏内边距得自己加 ——
+                        // 以前挂在旧 App() 的 Column 里时这里不能加（会双份），位置一换就得跟着换。
+                        .statusBarsPadding()
                         // 给底部导航条留位置：不留的话最后一张卡会被压在半透明玻璃底下
                         .padding(bottom = 108.dp),
                 ) {
@@ -170,6 +172,7 @@ fun MiuixPreviewScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .statusBarsPadding()
                         .padding(bottom = 28.dp),
                 ) {
                     when (page) {
@@ -212,7 +215,8 @@ private fun HomeTab(
             Text("TalkTact · ${appVersion(context)}", fontSize = 13.sp, color = c.onBackgroundVariant)
         }
         Text(
-            "返回",
+            // 新界面已经是根了，这个位置不再是「返回」，而是**去旧界面**（未迁移的功能都在那边）
+            "旧界面",
             fontSize = 14.sp,
             color = c.primary,
             modifier = Modifier.clickable(onClick = onBack).padding(8.dp),

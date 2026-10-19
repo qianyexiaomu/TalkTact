@@ -230,11 +230,11 @@ fun SettingsScreen(
 
         // 新版界面（Miuix）的入口。**只是预览**：真正的迁移是逐页替换，
         // 在做完之前旧界面必须一直能用 —— 所以这里是一个按钮，而不是替换掉整套导航。
-        SectionCard(d.glassAlpha, "新版界面（实验）") {
+        SectionCard(d.glassAlpha, "界面") {
             Spacer(Modifier.height(Space.sm))
             Text(
-                "用 Miuix（HyperOS 风格，KernelSU 那套组件）重做的新界面。" +
-                    "先做出来看看观感：首页照 KSU 的样子，设置会拆成分页。",
+                "新界面（Miuix / HyperOS 风格）已经是默认界面了，这里只是旧版功能的入口。" +
+                    "上一页点「旧界面」就能回去。",
                 fontSize = TextSize.body,
                 color = palette.sub,
             )
@@ -243,7 +243,7 @@ fun SettingsScreen(
                 onClick = onOpenMiuix,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape = RoundedCornerShape(RadiusR2),
-            ) { Text("打开 Miuix 预览") }
+            ) { Text("回到新界面") }
         }
     }
 }
