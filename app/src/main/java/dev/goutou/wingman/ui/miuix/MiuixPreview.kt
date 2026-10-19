@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.config.replyPlan
+import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.ui.appVersion
 import dev.goutou.wingman.ui.moduleActive
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -68,10 +70,13 @@ fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
         val cfg = remember { store.load() }
         var tab by remember { mutableIntStateOf(0) }
 
-        // **不涂底色**（透明）：下面那层是 App 自己的渐变背景（App() 里的 BackgroundLayer），
-        // 玻璃导航条要靠它才有东西可模糊。这里一旦铺上 Miuix 的实色 background，
-        // 就等于把渐变盖死 —— 导航条会变成一块「糊在灰底上的半透明板」。
-        Box(Modifier.fillMaxSize()) {
+        // 底色用 Miuix 自己的 `background`（浅色是近白灰、深色是黑）。
+        //
+        // 之前试过「透明，露出 App 的紫色渐变」：渐变本身带一条竖向光带，白卡贴上去很脏，
+        // 而且大标题压在紫底上刺眼 —— 参考图那种干净感全没了。
+        // 代价是玻璃导航条没东西可模糊、退化成「白磨砂 + 描边」；这个取舍是刻意的：
+        // 干净比"真折射"重要，导航条在白底上也一样好看。
+        Box(Modifier.fillMaxSize().background(c.background)) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -81,7 +86,7 @@ fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
                     .padding(bottom = 108.dp),
             ) {
                 when (tab) {
-                    0 -> HomeTab(c, store, cfg, onBack)
+                    0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
                     1 -> StatusTab(c, store, cfg)
                     2 -> SettingsTab(c, onBack)
                     else -> AboutTab(c, store)
@@ -107,46 +112,47 @@ fun MiuixPreviewScreen(store: ConfigStore, onBack: () -> Unit) {
 }
 
 @Composable
-private fun HomeTab(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -> Unit) {
+private fun HomeTab(
+    c: Colors,
+    store: ConfigStore,
+    cfg: ConfigData,
+    onOpenTab: (Int) -> Unit,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
     val (calls, tokens) = remember { store.usage() }
     val active = moduleActive(store)
     val styles = cfg.replyPlan.styles.size
 
     Row(
-        Modifier.fillMaxWidth().padding(start = 28.dp, end = 20.dp, top = 22.dp),
+        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("微信军师", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+            Text("微信军师", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
             Spacer(Modifier.height(2.dp))
             Text("TalkTact · ${appVersion(context)}", fontSize = 13.sp, color = c.onBackgroundVariant)
         }
         Text(
             "返回",
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             color = c.primary,
-            modifier = Modifier.clickable(onClick = onBack).padding(10.dp),
+            modifier = Modifier.clickable(onClick = onBack).padding(8.dp),
         )
     }
 
     SmallTitle(text = "运行状态")
-    // 正文颜色必须**跟着卡片底色走**：启用时卡是 primaryContainer、未启用是白卡，
-    // 两种情况的前景色不一样。之前这里写死 onPrimaryContainer，未启用时就是「灰底浅字」，
-    // 截图里几乎看不清 —— 这种错在代码里一眼扫不出来，只能靠看图才发现。
-    //
-    // 未启用故意**不用 secondaryContainer**：那色是给「有内容但次要」的容器用的，
-    // 压在渐变背景上会和底色混成一块浑浊的橄榄色（试过，很难看）。白卡 + 深字最干净。
-    val fg = if (active) c.onPrimaryContainer else c.onSurface
+    // 正文颜色跟着底色走：运行中是浅色强调底（深色字用 onSurface），未启用是白卡。
+    // 未启用**不用 secondaryContainer**：那色压在底上会发浑（试过）。
     Card(
         modifier = Modifier.padding(horizontal = 12.dp),
-        color = if (active) c.primaryContainer else c.surface,
+        color = if (active) c.primary.copy(alpha = 0.12f) else c.surface,
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
-                        .size(10.dp)
+                        .size(9.dp)
                         .clip(CircleShape)
                         .background(if (active) c.primary else c.onSurfaceVariantSummary),
                 )
@@ -155,26 +161,40 @@ private fun HomeTab(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -
                     if (active) "运行中" else "未启用",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = fg,
+                    color = c.onSurface,
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text("模型　${cfg.model.ifBlank { "还没填" }}", fontSize = 14.sp, color = fg)
-            Spacer(Modifier.height(4.dp))
+            Text("模型　${cfg.model.ifBlank { "还没填" }}", fontSize = 14.sp, color = c.onSurface)
+            Spacer(Modifier.height(3.dp))
             Text(
                 "自动分析　${if (cfg.enabled) "开" else "关"}　·　回复风格 $styles 种",
                 fontSize = 14.sp,
-                color = fg,
+                color = c.onSurface,
             )
             if (!active) {
                 Spacer(Modifier.height(6.dp))
-                Text("到 LSPosed 里勾选微信，再强行停止微信重开", fontSize = 12.sp, color = fg)
+                Text(
+                    "到 LSPosed 里勾选微信，再强行停止微信重开",
+                    fontSize = 12.sp,
+                    color = c.onSurfaceVariantSummary,
+                )
             }
         }
     }
 
-    // 2×2 小信息卡（参考图里「WAN / 网速 / 订阅 / 资源占用」那四块）
-    Spacer(Modifier.height(12.dp))
+    // 三宫格入口（参考图里 WebUI / Sub-Store / 日志 那排）
+    Spacer(Modifier.height(10.dp))
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        QuickTile(c, "设置", "外观 / 接入", Modifier.weight(1f)) { onOpenTab(2) }
+        QuickTile(c, "状态", "模块 / 用量", Modifier.weight(1f)) { onOpenTab(1) }
+        QuickTile(c, "关于", "版本 / 说明", Modifier.weight(1f)) { onOpenTab(3) }
+    }
+
+    SmallTitle(text = "用量")
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -190,15 +210,20 @@ private fun HomeTab(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -
         MiniStat(c, "参考条数", "${cfg.ctx} 条", Modifier.weight(1f))
         MiniStat(c, "最短间隔", "${cfg.minIntervalSec}s", Modifier.weight(1f))
     }
+}
 
-    Spacer(Modifier.height(18.dp))
-    Text(
-        "这是 Miuix 新版界面：底部是液态玻璃导航条（项目原有的 GlassSurface，会真的模糊背景）。" +
-            "设置分页与其余页面在后续迁移。",
-        fontSize = 12.sp,
-        color = c.onBackgroundVariant,
-        modifier = Modifier.padding(horizontal = 28.dp),
-    )
+/** 等宽小入口（三宫格那一排）：标题 + 一句副标题，整块可点。 */
+@Composable
+private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.clip(RoundedCornerShape(RadiusR2)).clickable(onClick = onClick),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 13.dp)) {
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface, maxLines = 1)
+            Spacer(Modifier.height(2.dp))
+            Text(sub, fontSize = 11.sp, color = c.onSurfaceVariantSummary, maxLines = 1)
+        }
+    }
 }
 
 @Composable
