@@ -916,6 +916,39 @@ private fun RoleDetailPage(c: Colors, store: ConfigStore, key: String?, onBack: 
         )
     }
 
+    // 合并：同一个人被记成两条时用。`mergeRoles(from, to)` 把 from 的记录并进 to
+    val others = remember(role.key, tick) {
+        store.roles().filter { it.key != role.key && it.key != SELF_ROLE_KEY }
+    }
+    var mergeOpen by remember { mutableStateOf(false) }
+    SmallTitle(text = "合并")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = if (mergeOpen) "收起" else "把另一个角色合并进来",
+            summary = if (others.isEmpty()) "没有别的角色可合并" else "同一个人被记成两条时用",
+            onClick = { mergeOpen = !mergeOpen },
+            rightActions = {
+                if (others.isNotEmpty()) {
+                    Text(if (mergeOpen) "收起" else "选择", fontSize = 13.sp, color = c.primary)
+                }
+            },
+        )
+        if (mergeOpen) {
+            others.forEach { o ->
+                HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+                BasicComponent(
+                    title = o.name,
+                    summary = "${o.msgs.size} 条记录 · 并进来之后这条会消失",
+                    onClick = {
+                        store.mergeRoles(o.key, role.key)
+                        tick++
+                        mergeOpen = false
+                    },
+                )
+            }
+        }
+    }
+
     SmallTitle(text = "危险操作")
     var confirmDelete by remember { mutableStateOf(false) }
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
@@ -1754,6 +1787,7 @@ private fun WhitelistPage(
 ) {
     var tick by remember { mutableIntStateOf(0) }
     var typed by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
     val cands = remember(tick) { store.chatCandidates() }
 
     fun write(enabled: Boolean, chats: Set<String>) {
@@ -1816,8 +1850,19 @@ private fun WhitelistPage(
         }
     }
 
-    val rest = cands.filter { it !in cfg.whitelist }
+    // 候选可能有几百个，搜索框是必须的（旧界面那个「拉取到的联系人」页也有）
+    val rest = cands.filter { it !in cfg.whitelist && (query.isBlank() || it.contains(query, ignoreCase = true)) }
     SmallTitle(text = "微信里读到的（${rest.size} 个未加入）")
+    Column(Modifier.padding(horizontal = 12.dp)) {
+        TextField(
+            value = query,
+            onValueChange = { query = it },
+            label = "搜索名字",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    Spacer(Modifier.height(8.dp))
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         if (rest.isEmpty()) {
             Column(Modifier.padding(16.dp)) {
@@ -2039,6 +2084,7 @@ private fun ChatStylesPage(
 ) {
     var tick by remember { mutableIntStateOf(0) }
     var pickOpen by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     val cands = remember(tick) { store.chatCandidates() }
 
     DetailHeader(c, "按联系人设风格", onBack)
@@ -2080,7 +2126,19 @@ private fun ChatStylesPage(
             rightActions = { Text(if (pickOpen) "收起" else "展开", fontSize = 13.sp, color = c.primary) },
         )
         if (pickOpen) {
-            val rest = cands.filter { it !in cfg.chatStyles }
+            val rest = cands.filter {
+                it !in cfg.chatStyles && (query.isBlank() || it.contains(query, ignoreCase = true))
+            }
+            HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            Column(Modifier.padding(12.dp)) {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = "搜索名字",
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             if (rest.isEmpty()) {
                 HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
                 Column(Modifier.padding(16.dp)) {
