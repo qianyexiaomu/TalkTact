@@ -3,8 +3,12 @@ package dev.goutou.wingman.ui.miuix
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +96,9 @@ import dev.goutou.wingman.wechat.Sensitive
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
 import dev.goutou.wingman.proxy.ProxyService
+import dev.goutou.wingman.ui.agoText
 import dev.goutou.wingman.ui.appVersion
+import dev.goutou.wingman.ui.moduleActiveReason
 import dev.goutou.wingman.ui.buildDiagZip
 import dev.goutou.wingman.ui.formatTime
 import dev.goutou.wingman.ui.skillName
@@ -210,10 +218,8 @@ fun MiuixPreviewScreen(
                         .padding(bottom = 108.dp),
                 ) {
                     when (tab) {
-                        0 -> HomeTab(c, store, cfg, onOpenTab = { tab = it }, onBack = onBack)
-                        1 -> MentorTab(c, store, cfg, save)
-                        2 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
-                        3 -> TrialTab(c, store)
+                        0 -> HomeTab(c, store, cfg, onOpenPage = { page = it }, onBack = onBack)
+                        1 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
                         else -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
                     }
                 }
@@ -221,9 +227,7 @@ fun MiuixPreviewScreen(
                 MiuixGlassNavBar(
                     items = listOf(
                         "首页" to Icons.Filled.Home,
-                        "军师" to Icons.Filled.Edit,
                         "角色" to Icons.Filled.Person,
-                        "试一试" to Icons.Filled.PlayArrow,
                         "设置" to Icons.Filled.Settings,
                     ),
                     selected = tab,
@@ -261,6 +265,8 @@ fun MiuixPreviewScreen(
                             c, store, cfg, setChatStyles,
                             onOpen = { chatKey = it; page = 13 },
                         ) { page = 3 }
+                        16 -> TrialPage(c, store) { page = 0 }
+                        15 -> MentorPage(c, store, cfg, save) { page = 0 }
                         else -> ChatStyleEditPage(
                             c, cfg, chatKey, setChatStyles,
                             onRemove = { removeChatStyle(it); page = 12 },
@@ -277,16 +283,26 @@ private fun HomeTab(
     c: Colors,
     store: ConfigStore,
     cfg: ConfigData,
-    onOpenTab: (Int) -> Unit,
+    onOpenPage: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val (calls, tokens) = remember { store.usage() }
     val active = moduleActive(store)
+    val reason = moduleActiveReason(store)
     val styles = cfg.replyPlan.styles.size
-    // 卡片右侧那三行小指标用的都是真实配置：勾了几种风格 / 单独设过几个联系人 / 白名单几个人
     val chats = cfg.chatStyles.size
     val white = cfg.whitelist.size
+    val route = remember { store.lastRoute() }
+    val heartbeat = remember { store.heartbeatAt() }
+    val roleCount = remember { store.roles().size }
+    val candCount = remember { store.chatCandidates().size }
+    // Android 11+ 要清单里声明 <queries> 才读得到别的 App 版本（已加，见 AndroidManifest）
+    val wechatVersion = remember {
+        runCatching {
+            context.packageManager.getPackageInfo("com.tencent.mm", 0).versionName
+        }.getOrNull() ?: "未安装"
+    }
 
     Row(
         Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
@@ -298,7 +314,6 @@ private fun HomeTab(
             Text("TalkTact · ${appVersion(context)}", fontSize = 13.sp, color = c.onBackgroundVariant)
         }
         Text(
-            // 新界面已经是根了，这个位置不再是「返回」，而是**去旧界面**（未迁移的功能都在那边）
             "旧界面",
             fontSize = 14.sp,
             color = c.primary,
@@ -306,16 +321,15 @@ private fun HomeTab(
         )
     }
 
+    // ── 运行状态（hero）──
     SmallTitle(text = "运行状态")
-    // 正文颜色跟着底色走：运行中是浅色强调底（深色字用 onSurface），未启用是白卡。
-    // 未启用**不用 secondaryContainer**：那色压在底上会发浑（试过）。
+    val fg = if (active) c.onPrimaryContainer else c.onSurface
     Card(
         modifier = Modifier.padding(horizontal = 12.dp),
-        color = if (active) c.primary.copy(alpha = 0.12f) else c.surface,
+        color = if (active) c.primaryContainer else c.surface,
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                // 左：状态 + 模型 + 自动分析（宽度让给右边那三行，模型名太长就省略号）
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -329,27 +343,25 @@ private fun HomeTab(
                             if (active) "运行中" else "未启用",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = c.onSurface,
+                            color = fg,
                         )
                     }
-                    Spacer(Modifier.height(9.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        reason ?: "到 LSPosed 里勾选微信，再强行停止微信重开",
+                        fontSize = 12.sp,
+                        color = if (active) fg else c.onSurfaceVariantSummary,
+                    )
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         "模型　${cfg.model.ifBlank { "还没填" }}",
                         fontSize = 13.sp,
-                        color = c.onSurface,
+                        color = fg,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        "自动分析　${if (cfg.enabled) "开" else "关"}",
-                        fontSize = 13.sp,
-                        color = c.onSurface,
-                        maxLines = 1,
-                    )
                 }
                 Spacer(Modifier.width(14.dp))
-                // 右：三行小指标（右对齐）。都是真实配置，不是装饰数字。
                 Column(horizontalAlignment = Alignment.End) {
                     MetaRow(c, "风格", "$styles 种")
                     Spacer(Modifier.height(5.dp))
@@ -358,29 +370,68 @@ private fun HomeTab(
                     MetaRow(c, "白名单", "$white 个")
                 }
             }
-            if (!active) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "到 LSPosed 里勾选微信，再强行停止微信重开",
-                    fontSize = 12.sp,
-                    color = c.onSurfaceVariantSummary,
-                )
-            }
         }
     }
 
-    // 三宫格入口（参考图里 WebUI / Sub-Store / 日志 那排）
-    Spacer(Modifier.height(10.dp))
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        QuickTile(c, "设置", "外观 / 接入", Modifier.weight(1f)) { onOpenTab(2) }
-        QuickTile(c, "状态", "模块 / 用量", Modifier.weight(1f)) { onOpenTab(1) }
-        QuickTile(c, "关于", "版本 / 说明", Modifier.weight(1f)) { onOpenTab(3) }
+    // ── 模块 / 微信 / 信息 ──
+    SmallTitle(text = "模块")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "注入状态",
+            summary = reason ?: "还没在微信里跑起来",
+            rightActions = {
+                Text(
+                    if (active) "已注入" else "未注入",
+                    fontSize = 13.sp,
+                    color = if (active) c.primary else c.onSurfaceVariantSummary,
+                )
+            },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "最近一次走的路",
+            summary = if (route.first.isBlank()) "还没有回传" else route.first,
+            rightActions = {
+                if (route.second > 0) {
+                    Text(agoText(route.second, System.currentTimeMillis()), fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+                }
+            },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "模块版本",
+            rightActions = { Text(appVersion(context), fontSize = 13.sp, color = c.onSurfaceVariantSummary) },
+        )
     }
 
-    SmallTitle(text = "用量")
+    SmallTitle(text = "微信")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "微信版本",
+            summary = "com.tencent.mm",
+            rightActions = { Text(wechatVersion, fontSize = 13.sp, color = c.onSurfaceVariantSummary) },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "最近心跳",
+            summary = if (heartbeat > 0) agoText(heartbeat, System.currentTimeMillis()) else "微信里还没跑过模块",
+            rightActions = {
+                Text(
+                    if (heartbeat > 0) "正常" else "无",
+                    fontSize = 13.sp,
+                    color = if (heartbeat > 0) c.primary else c.onSurfaceVariantSummary,
+                )
+            },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "自动分析",
+            summary = if (cfg.enabled) "在聊天页自动出候选" else "已关闭，只手动识别",
+            rightActions = { Text(if (cfg.enabled) "开" else "关", fontSize = 13.sp, color = c.onSurfaceVariantSummary) },
+        )
+    }
+
+    SmallTitle(text = "信息")
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -393,22 +444,21 @@ private fun HomeTab(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        MiniStat(c, "参考条数", "${cfg.ctx} 条", Modifier.weight(1f))
-        MiniStat(c, "最短间隔", "${cfg.minIntervalSec}s", Modifier.weight(1f))
+        MiniStat(c, "角色", "$roleCount", Modifier.weight(1f))
+        MiniStat(c, "候选会话", "$candCount", Modifier.weight(1f))
     }
 
-    Spacer(Modifier.height(14.dp))
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
-            Text("提示", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "改完设置要「强行停止微信」再打开 —— 注入侧的模块代码是微信启动时加载的。",
-                fontSize = 12.sp,
-                color = c.onSurfaceVariantSummary,
-            )
-        }
+    // ── 快捷入口（把「军师 / 试一试」从底部挪到这里）──
+    Spacer(Modifier.height(12.dp))
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        QuickTile(c, "军师", "提示词 / skill", Modifier.weight(1f)) { onOpenPage(15) }
+        QuickTile(c, "试一试", "粘聊天看输出", Modifier.weight(1f)) { onOpenPage(16) }
+        QuickTile(c, "关于", "版本 / 说明", Modifier.weight(1f)) { onOpenPage(7) }
     }
+    Spacer(Modifier.height(24.dp))
 }
 
 /** 状态卡右侧的一行小指标：左边灰色标签、右边深色数值（整列右对齐）。 */
@@ -424,8 +474,17 @@ private fun MetaRow(c: Colors, label: String, value: String) {
 /** 等宽小入口（三宫格那一排）：标题 + 一句副标题，整块可点。 */
 @Composable
 private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(90))
     Card(
-        modifier = modifier.clip(RoundedCornerShape(RadiusR2)).clickable(onClick = onClick),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 13.dp)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface, maxLines = 1)
@@ -448,7 +507,13 @@ private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier 
  * 远程导入（粘 GitHub 链接）还没搬：它要挂协程和网络状态，单独一轮做。
  */
 @Composable
-private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (ConfigData) -> Unit) {
+private fun MentorPage(
+    c: Colors,
+    store: ConfigStore,
+    cfg: ConfigData,
+    save: (ConfigData) -> Unit,
+    onBack: () -> Unit,
+) {
     var text by remember(cfg.prompt) { mutableStateOf(cfg.prompt) }
     var confirmReset by remember { mutableStateOf(false) }
     var importOpen by remember { mutableStateOf(false) }
@@ -458,20 +523,13 @@ private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (Con
     val scope = rememberCoroutineScope()
     val dirty = text != cfg.prompt
 
-    Row(
-        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("军师", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "当前 skill：${skillName(cfg.skillId)}",
-                fontSize = 13.sp,
-                color = c.onBackgroundVariant,
-            )
-        }
-    }
+    DetailHeader(c, "军师", onBack)
+    Text(
+        "当前 skill：${skillName(cfg.skillId)}",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
 
     SmallTitle(text = "提示词")
     Column(Modifier.padding(horizontal = 12.dp)) {
@@ -604,7 +662,7 @@ private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (Con
  * 结果点一下复制，省得手动选中。
  */
 @Composable
-private fun TrialTab(c: Colors, store: ConfigStore) {
+private fun TrialPage(c: Colors, store: ConfigStore, onBack: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     var input by remember { mutableStateOf("对方: 在吗\n我: 在\n对方: 周末有空吗，想约你吃个饭") }
     var suggestion by remember { mutableStateOf<Suggestion?>(null) }
@@ -614,16 +672,13 @@ private fun TrialTab(c: Colors, store: ConfigStore) {
     val scope = rememberCoroutineScope()
     val hits = remember(input) { Sensitive.hits(input) }
 
-    Row(
-        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("试一试", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
-            Spacer(Modifier.height(2.dp))
-            Text("粘一段聊天，直接看接口会写出什么", fontSize = 13.sp, color = c.onBackgroundVariant)
-        }
-    }
+    DetailHeader(c, "试一试", onBack)
+    Text(
+        "粘一段聊天，直接看接口会写出什么",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
 
     SmallTitle(text = "聊天内容")
     Column(Modifier.padding(horizontal = 12.dp)) {
@@ -2434,6 +2489,7 @@ private fun SelfCheckPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack
     Spacer(Modifier.height(24.dp))
 }
 
+/** 主按钮：实心圆角 + 投影，按下时缩一点、深一点 —— 手指压下去要有回应。 */
 @Composable
 private fun PrimaryButton(
     text: String,
@@ -2441,20 +2497,47 @@ private fun PrimaryButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val c = MiuixTheme.colorScheme
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed && enabled) 0.97f else 1f, tween(90))
+    val shape = RoundedCornerShape(20.dp)
+
     Box(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (enabled) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.secondary)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 14.dp),
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(
+                elevation = if (enabled) 10.dp else 0.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = c.primary.copy(alpha = 0.35f),
+                spotColor = c.primary.copy(alpha = 0.45f),
+            )
+            .clip(shape)
+            .background(if (enabled) c.primary else c.secondary)
+            .then(
+                if (enabled) {
+                    Modifier.clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .padding(vertical = 15.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text,
             fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (enabled) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) c.onPrimary else c.onSurfaceVariantSummary,
         )
     }
 }

@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      「微信」卡片要显示对方 App 的版本号。
+      Android 11+ 有包可见性限制：不在这里声明的话，getPackageInfo("com.tencent.mm") 会直接抛
+      NameNotFoundException —— 只声明这一个包，不是 QUERY_ALL_PACKAGES。
+    -->
+    <queries>
+        <package android:name="com.tencent.mm" />
+    </queries>
     <!-- 本地代理要常驻监听回环端口，所以是个前台服务（类型 specialUse，见下面的 service 声明） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

@@ -316,7 +316,7 @@ class ScreenRenderTest {
     /** Miuix 标签页：角色列表。 */
     @Test
     fun `Miuix 角色页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store, initialTab = 2) {} }
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 15) {} }
         rule.onNodeWithText("档案").assertExists()
         capture("miuix-roles")
     }
@@ -333,7 +333,7 @@ class ScreenRenderTest {
     /** Miuix 标签页：试一试。 */
     @Test
     fun `Miuix 试一试页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store, initialTab = 3) {} }
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 16) {} }
         rule.onNodeWithText("聊天内容").assertExists()
         capture("miuix-trial")
     }
