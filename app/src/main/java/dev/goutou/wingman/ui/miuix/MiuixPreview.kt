@@ -1,5 +1,6 @@
 package dev.goutou.wingman.ui.miuix
 
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -1070,7 +1071,22 @@ private fun AppearancePage(
     // 所以和地址一样走草稿 + 显式保存；档位那种离散选择才立刻生效。
     var alpha by remember(cfg.glassAlpha) { mutableStateOf(cfg.glassAlpha) }
     var blur by remember(cfg.glassBlur) { mutableStateOf(cfg.glassBlur) }
-    val frostedDirty = alpha != cfg.glassAlpha || blur != cfg.glassBlur
+    var dim by remember(cfg.bgDim) { mutableStateOf(cfg.bgDim) }
+    val frostedDirty = alpha != cfg.glassAlpha || blur != cfg.glassBlur || dim != cfg.bgDim
+    val context = LocalContext.current
+    // 选图走 OpenDocument + 持久授权：重启之后还得能读到这张图。
+    // 有的来源不支持持久授权（云盘之类），那就只在本次运行里有效 —— 不能因此崩掉。
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            save(cfg.copy(bgUri = uri.toString()))
+        }
+    }
 
     SmallTitle(text = "磨砂")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -1099,6 +1115,21 @@ private fun AppearancePage(
                 decimalPlaces = 0,
                 onProgressChange = { blur = it },
             )
+            // 压暗只对自定义背景图开放：内置渐变本身已经调过明度，再压一层会把配色一起糊掉
+            if (cfg.bgUri.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "背景压暗 ${(dim * 100).toInt()}%",
+                    fontSize = 13.sp,
+                    color = c.onSurface,
+                )
+                Slider(
+                    progress = dim,
+                    minValue = 0f,
+                    maxValue = 0.7f,
+                    onProgressChange = { dim = it },
+                )
+            }
         }
     }
     Spacer(Modifier.height(12.dp))
@@ -1107,12 +1138,30 @@ private fun AppearancePage(
         enabled = frostedDirty,
         modifier = Modifier.padding(horizontal = 12.dp),
     ) {
-        save(cfg.copy(glassAlpha = alpha, glassBlur = blur))
+        save(cfg.copy(glassAlpha = alpha, glassBlur = blur, bgDim = dim))
     }
 
-    SmallTitle(text = "更多")
+    SmallTitle(text = "背景图")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        SuperArrow(title = "背景图", summary = "换聊天背景（还在旧界面里）", onClick = onOld)
+        BasicComponent(
+            title = if (cfg.bgUri.isBlank()) "选择背景图" else "更换背景图",
+            summary = if (cfg.bgUri.isBlank()) {
+                "当前是内置渐变（跟随系统明暗），选一张图会替换掉它"
+            } else {
+                "已设置自定义背景；玻璃面板背后会对它做模糊 + 折射"
+            },
+            onClick = { pickImage.launch(arrayOf("image/*")) },
+            rightActions = { Text("选择", fontSize = 13.sp, color = c.primary) },
+        )
+        if (cfg.bgUri.isNotBlank()) {
+            HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            BasicComponent(
+                title = "恢复默认背景",
+                summary = "换回内置渐变",
+                onClick = { save(cfg.copy(bgUri = "")) },
+                rightActions = { Text("恢复", fontSize = 13.sp, color = Color(0xFFD64545)) },
+            )
+        }
     }
     Spacer(Modifier.height(24.dp))
 }
