@@ -362,6 +362,14 @@ class ScreenRenderTest {
         capture("miuix-whitelist")
     }
 
+    /** Miuix 二级页：备份与迁移。 */
+    @Test
+    fun `Miuix 备份页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 10) {} }
+        rule.onNodeWithText("选择文件导入").assertExists()
+        capture("miuix-backup")
+    }
+
     /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
     @Test
     fun `Miuix 角色详情能渲染`() {

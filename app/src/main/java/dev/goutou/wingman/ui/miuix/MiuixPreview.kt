@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.goutou.wingman.config.Backup
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.config.Role
@@ -202,7 +203,8 @@ fun MiuixPreviewScreen(
                         6 -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
                         7 -> AboutPage(c, store) { page = 0 }
                         8 -> DiagnosticPage(c, store, cfg, save) { page = 0 }
-                        else -> WhitelistPage(c, store, cfg, reload) { page = 0 }
+                        9 -> WhitelistPage(c, store, cfg, reload) { page = 0 }
+                        else -> BackupPage(c, store, cfg, reload) { page = 0 }
                     }
                 }
             }
@@ -852,14 +854,14 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(title = "关于", summary = "版本 / 风控说明", onClick = { onOpenPage(7) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = onOld)
+        SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = { onOpenPage(10) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = { onOpenPage(8) })
     }
 
     Spacer(Modifier.height(18.dp))
     Text(
-        "只剩「备份与迁移」还在旧界面，其余都已经是新界面。",
+        "设置页所有条目都已经是新界面了。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 28.dp),
@@ -1311,7 +1313,7 @@ private fun WhitelistPage(
     }
 
     SmallTitle(text = "已加入（${cfg.whitelist.size}）")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         if (cfg.whitelist.isEmpty()) {
             Column(Modifier.padding(16.dp)) {
                 Text("名单是空的", fontSize = 13.sp, color = c.onSurface)
@@ -1349,7 +1351,7 @@ private fun WhitelistPage(
 
     val rest = cands.filter { it !in cfg.whitelist }
     SmallTitle(text = "微信里读到的（${rest.size} 个未加入）")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         if (rest.isEmpty()) {
             Column(Modifier.padding(16.dp)) {
                 Text(
@@ -1379,6 +1381,103 @@ private fun WhitelistPage(
             .clickable { tick++ }
             .padding(vertical = 8.dp),
     )
+    Spacer(Modifier.height(24.dp))
+}
+
+/**
+ * 备份与迁移：导出成 json、装新包后再导入。
+ *
+ * 导出/导入都用系统的文件选择器（`CreateDocument` / `OpenDocument`）—— 这项目**没有**
+ * 存储权限，也不该为了备份去要一个。
+ *
+ * 导入走 `Backup.import(text, current, currentRoles)`：它逐字段「有才覆盖」，
+ * 所以备份里故意没带 API Key 时，也不会把新包里已经填好的 Key 冲掉。导入成功要
+ * **同时**写配置和角色（`saveRoles`），只写一半会变成"配置是新的、角色还是旧的"。
+ */
+@Composable
+private fun BackupPage(
+    c: Colors,
+    store: ConfigStore,
+    cfg: ConfigData,
+    reload: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    var includeKey by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<String?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            note = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(Backup.export(store.load(), store.roles(), includeKey).toByteArray(Charsets.UTF_8))
+                }
+                "已导出"
+            }.getOrElse { "导出失败：${it.message}" }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            note = try {
+                val text = context.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val result = Backup.import(text, store.load(), store.roles())
+                if (result == null) {
+                    "导入失败：不是有效的备份文件"
+                } else {
+                    store.save(result.config)
+                    store.saveRoles(result.roles)
+                    reload()
+                    "已导入：配置 + ${result.roleCount} 个角色"
+                }
+            } catch (t: Throwable) {
+                "导入失败：${t.message}"
+            }
+        }
+    }
+
+    DetailHeader(c, "备份与迁移", onBack)
+    Text(
+        "换包名、换手机的时候用：导出成一个 json，装好新的再导入回来。导入是合并 —— 角色只覆盖同名的。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
+
+    SmallTitle(text = "导出")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "导出时包含 API Key",
+            summary = "开了的话文件里有明文 Key，别往公开地方放",
+            checked = includeKey,
+            onCheckedChange = { includeKey = it },
+        )
+    }
+    Spacer(Modifier.height(10.dp))
+    PrimaryButton(text = "导出配置", enabled = true, modifier = Modifier.padding(horizontal = 12.dp)) {
+        exportLauncher.launch(Backup.FILE_NAME)
+    }
+
+    SmallTitle(text = "导入")
+    Text(
+        "选一个之前导出的 json。现在的配置里没被备份覆盖到的项会原样保留。",
+        fontSize = 12.sp,
+        color = c.onSurfaceVariantSummary,
+        modifier = Modifier.padding(horizontal = 26.dp).padding(bottom = 8.dp),
+    )
+    PrimaryButton(text = "选择文件导入", enabled = true, modifier = Modifier.padding(horizontal = 12.dp)) {
+        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+    }
+
+    note?.let {
+        Spacer(Modifier.height(10.dp))
+        Text(it, fontSize = 12.sp, color = c.onBackgroundVariant, modifier = Modifier.padding(horizontal = 26.dp))
+    }
     Spacer(Modifier.height(24.dp))
 }
 
