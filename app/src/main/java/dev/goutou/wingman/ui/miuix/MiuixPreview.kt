@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -55,7 +56,10 @@ import dev.goutou.wingman.config.Backup
 import dev.goutou.wingman.config.ConfigData
 import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.config.Role
+import dev.goutou.wingman.llm.Geo
 import dev.goutou.wingman.llm.Graded
+import dev.goutou.wingman.llm.LlmException
+import dev.goutou.wingman.llm.NetInfo
 import dev.goutou.wingman.llm.LlmClient
 import dev.goutou.wingman.llm.Suggestion
 import dev.goutou.wingman.llm.gradedWaitMs
@@ -252,6 +256,7 @@ fun MiuixPreviewScreen(
                         9 -> WhitelistPage(c, store, cfg, reload) { page = 0 }
                         10 -> BackupPage(c, store, cfg, reload) { page = 0 }
                         11 -> ProxyPage(c, store, cfg) { page = 0 }
+                        14 -> SelfCheckPage(c, store, cfg) { page = 0 }
                         12 -> ChatStylesPage(
                             c, store, cfg, setChatStyles,
                             onOpen = { chatKey = it; page = 13 },
@@ -969,6 +974,8 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     }
     SmallTitle(text = "维护")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperArrow(title = "接口自检", summary = "网络 / 能不能连上 / 要多久", onClick = { onOpenPage(14) })
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "关于", summary = "版本 / 风控说明", onClick = { onOpenPage(7) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "备份与迁移", summary = "导出 / 导入配置", onClick = { onOpenPage(10) })
@@ -2205,6 +2212,168 @@ private fun TempRow(c: Colors, value: Double, onChange: (Double) -> Unit) {
             )
         },
     )
+}
+
+/**
+ * 接口自检：**只看「连不连得上、要多久」**。
+ *
+ * 发一次最小请求（一句 ping、只让它回 1 个 token），不拼 skill、不看回复内容 ——
+ * 模型没按 JSON 回算不上连接问题，那种情况去「试一试」。
+ *
+ * 判定逻辑**照搬旧界面**（`LlmClient.probe()` + 分级模式下第二套接口单独再测一次 +
+ * 记 `saveProbeMs` 给运行时「两路对齐等待」用）。这两处很容易凭感觉写错：
+ * 1. 分级模式两路**各自**测，慢的那路决定整卡多久出来；
+ * 2. 两路差 > 300ms 要明确提示「快的那路要等慢的」，否则用户会以为快的坏了。
+ */
+@Composable
+private fun SelfCheckPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var tick by remember { mutableIntStateOf(0) }
+    var probing by remember { mutableStateOf(false) }
+    var verdict by remember { mutableStateOf<String?>(null) }
+    var detail by remember { mutableStateOf<String?>(null) }
+    var ok by remember { mutableStateOf(false) }
+
+    val host = remember(cfg.baseUrl) { NetInfo.hostOf(cfg.baseUrl) }
+    val localIp by produceState<String?>(null, tick) {
+        value = withContext(Dispatchers.IO) { NetInfo.localIpv4() }
+    }
+    val targetIp by produceState<String?>(null, tick) {
+        value = withContext(Dispatchers.IO) { NetInfo.resolve(host) }
+    }
+    val geoUrl = remember(cfg.geoEndpoint) { cfg.geoEndpoint.trim().ifBlank { NetInfo.GEO_ENDPOINT } }
+    val localGeo by produceState<Geo?>(null, tick, cfg.geoEnabled, geoUrl) {
+        value = if (!cfg.geoEnabled) null else withContext(Dispatchers.IO) { NetInfo.geo(geoUrl) }
+    }
+    val targetGeo by produceState<Geo?>(null, tick, targetIp, cfg.geoEnabled, geoUrl) {
+        value = if (!cfg.geoEnabled || targetIp == null) {
+            null
+        } else {
+            withContext(Dispatchers.IO) { NetInfo.geo(geoUrl, ip = targetIp) }
+        }
+    }
+
+    fun join(vararg parts: String?): String? =
+        parts.filterNotNull().filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null }
+
+    DetailHeader(c, "接口自检", onBack)
+    Text(
+        "只看「连不连得上、要多久」：发一次最小请求，不拼 skill、也不看回复内容。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
+
+    SmallTitle(text = "网络")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "本机内网",
+            summary = localIp ?: "取不到",
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "本机公网",
+            summary = if (!cfg.geoEnabled) {
+                "归属地查询已关闭"
+            } else {
+                join(localGeo?.ip, localGeo?.province ?: localGeo?.country, localGeo?.isp) ?: "取不到"
+            },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        BasicComponent(
+            title = "目标服务器",
+            summary = join(targetIp, targetGeo?.province ?: targetGeo?.country) ?: "解析不到",
+            rightActions = {
+                host?.let { Text(it, fontSize = 12.sp, color = c.onSurfaceVariantSummary, maxLines = 1) }
+            },
+        )
+    }
+
+    SmallTitle(text = "连通性")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                "发一句 ping，只让它回 1 个 token —— 量的是连接和模型首包，不是完整生成。",
+                fontSize = 12.sp,
+                color = c.onSurfaceVariantSummary,
+            )
+            Spacer(Modifier.height(12.dp))
+            PrimaryButton(
+                text = if (probing) "测试中…" else "开始自检",
+                enabled = !probing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                probing = true
+                verdict = null
+                detail = null
+                val conf = store.load()
+                scope.launch {
+                    var v: String
+                    var d: String? = null
+                    try {
+                        val r = withContext(Dispatchers.IO) { LlmClient(conf).probe() }
+                        if (r.totalTokens > 0) store.addUsage(r.totalTokens)
+                        ok = true
+                        v = "通 · 往返 ${r.totalMs}ms · 模型 ${r.model} · ${r.totalTokens} token"
+                        val sb = StringBuilder()
+                        sb.append("写回复一路：连接 ")
+                            .append(r.connectMs?.let { "${it}ms" } ?: "未测得")
+                            .append(" · DNS ${r.dnsMs}ms · 往返 ${r.totalMs}ms")
+                        r.targetIp?.let { sb.append(" · 目标 ").append(it) }
+
+                        // 分级模式：第二套接口可能是完全不同的服务商，必须单独测
+                        var riskMs = 0L
+                        if (conf.graded) {
+                            try {
+                                val r2 = withContext(Dispatchers.IO) {
+                                    LlmClient(conf.riskEndpoint(), second = true).probe()
+                                }
+                                if (r2.totalTokens > 0) store.addUsage(r2.totalTokens)
+                                riskMs = r2.totalMs
+                                sb.append("\n风险一路：连接 ")
+                                    .append(r2.connectMs?.let { "${it}ms" } ?: "未测得")
+                                    .append(" · DNS ${r2.dnsMs}ms · 往返 ${r2.totalMs}ms")
+                                r2.targetIp?.let { sb.append(" · 目标 ").append(it) }
+                                val diff = kotlin.math.abs(r.totalMs - r2.totalMs)
+                                if (diff > 300) {
+                                    sb.append("\n两路差 ${diff}ms —— 快的那路要等慢的那路（自检只量最小请求，实际生成更久）")
+                                }
+                            } catch (t: Throwable) {
+                                sb.append("\n风险一路：失败 —— ").append(t.message)
+                            }
+                        }
+                        d = sb.toString()
+                        // 记下来：首页公告栏显示、运行时「两路对齐等待」也用它
+                        store.saveProbeMs(r.totalMs, riskMs)
+                    } catch (t: Throwable) {
+                        ok = false
+                        v = "失败：${t.message}"
+                        d = (t as? LlmException)?.hint
+                    }
+                    // 让归属地跟着这次自检重查一遍
+                    NetInfo.clearGeoCache()
+                    tick++
+                    verdict = v
+                    detail = d
+                    probing = false
+                }
+            }
+            verdict?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    it,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (ok) c.primary else Color(0xFFD64545),
+                )
+            }
+            detail?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        }
+    }
+    Spacer(Modifier.height(24.dp))
 }
 
 @Composable
