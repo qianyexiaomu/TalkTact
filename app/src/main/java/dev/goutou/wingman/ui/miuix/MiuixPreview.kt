@@ -1594,9 +1594,16 @@ private fun ImagePage(
         }
     }
 
-    SmallTitle(text = "更多")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "识图状态 / 最近一次", summary = "这些在旧界面里调", onClick = onOld)
+    SmallTitle(text = "最近一次识图")
+    var tick by remember { mutableIntStateOf(0) }
+    val (ocrLine, ocrAt) = remember(tick) { store.ocrInfo() }
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = if (ocrLine.isBlank()) "还没有记录" else ocrLine,
+            summary = if (ocrAt > 0) formatTime(ocrAt) else "去微信里打开一条带图的聊天，回来看这里",
+            onClick = { tick++ },
+            rightActions = { Text("刷新", fontSize = 13.sp, color = c.primary) },
+        )
     }
     Spacer(Modifier.height(24.dp))
 }
