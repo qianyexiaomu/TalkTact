@@ -16,7 +16,7 @@ import java.util.Locale
  * 这些原本散在旧界面的 `Ui.kt` / `ScreenCommon.kt` 里。旧界面删掉时**只把这几个搬过来**，
  * 其余（玻璃、主题、导航、八张旧页面）都随旧壳一起删了。
  *
- * 放在同一个包 `dev.goutou.wingman.ui` 下：调用处（`ui/miuix/*`）的 import 不用改。
+ * 放在同一个包 `dev.goutou.wingman.ui` 下：调用处（`ui.miuix` 里的文件）的 import 不用改。
  */
 
 /** 普通圆角（列表行 / 小按钮）。旧界面里那套 R1–R4 只剩这一个还在用。 */
