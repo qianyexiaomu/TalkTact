@@ -1058,8 +1058,12 @@ private fun EndpointPage(
     var model by remember(cfg.model) { mutableStateOf(cfg.model) }
     var shape by remember(cfg.apiShape) { mutableStateOf(cfg.apiShape) }
     var customPath by remember(cfg.customPath) { mutableStateOf(cfg.customPath) }
+    var url2 by remember(cfg.baseUrl2) { mutableStateOf(cfg.baseUrl2) }
+    var key2 by remember(cfg.apiKey2) { mutableStateOf(cfg.apiKey2) }
+    var model2 by remember(cfg.model2) { mutableStateOf(cfg.model2) }
     val dirty = url != cfg.baseUrl || key != cfg.apiKey || model != cfg.model ||
-        shape != cfg.apiShape || customPath != cfg.customPath
+        shape != cfg.apiShape || customPath != cfg.customPath ||
+        url2 != cfg.baseUrl2 || key2 != cfg.apiKey2 || model2 != cfg.model2
 
     SmallTitle(text = "接口")
     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1129,6 +1133,9 @@ private fun EndpointPage(
                 model = model.trim(),
                 apiShape = shape,
                 customPath = customPath.trim(),
+                baseUrl2 = url2.trim(),
+                apiKey2 = key2.trim(),
+                model2 = model2.trim(),
             ),
         )
     }
@@ -1144,9 +1151,60 @@ private fun EndpointPage(
         )
     }
 
+    SmallTitle(text = "第二套接口（分级模式的风险一路）")
+    Text(
+        "留空 = 复用上面那一套。分级模式下风险判断会走这里 —— 两路并行才快。",
+        fontSize = 12.sp,
+        color = c.onSurfaceVariantSummary,
+        modifier = Modifier.padding(horizontal = 26.dp).padding(bottom = 8.dp),
+    )
+    Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TextField(
+            value = url2,
+            onValueChange = { url2 = it },
+            label = "接口地址（留空 = 复用）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextField(
+            value = key2,
+            onValueChange = { key2 = it },
+            label = "API Key（留空 = 复用）",
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        TextField(
+            value = model2,
+            onValueChange = { model2 = it },
+            label = "模型（留空 = 复用）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    Spacer(Modifier.height(10.dp))
+    PrimaryButton(
+        text = if (dirty) "保存" else "已保存",
+        enabled = dirty,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        save(
+            cfg.copy(
+                baseUrl = url.trim(),
+                apiKey = key.trim(),
+                model = model.trim(),
+                apiShape = shape,
+                customPath = customPath.trim(),
+                baseUrl2 = url2.trim(),
+                apiKey2 = key2.trim(),
+                model2 = model2.trim(),
+            ),
+        )
+    }
+
     SmallTitle(text = "更多")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        SuperArrow(title = "服务商预设 / 第二套接口", summary = "这些在旧界面里调", onClick = onOld)
+        SuperArrow(title = "服务商预设", summary = "一键填常见服务商（旧界面）", onClick = onOld)
     }
     Spacer(Modifier.height(24.dp))
 }
