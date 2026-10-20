@@ -1155,37 +1155,61 @@ private fun EndpointPage(
 
     // 服务商预设：只省掉「去官网查地址」这一步 —— 选完地址/形态/模型照样能手改，
     // 也不改变任何请求逻辑（本来就是「OpenAI 兼容 + 自定义地址 + 自定义模型」）。
+    // 服务商预设：只省掉「去官网查地址」这一步 —— 选完地址/形态/模型照样能手改，
+    // 也不改变任何请求逻辑（本来就是「OpenAI 兼容 + 自定义地址 + 自定义模型」）。
+    //
+    // **默认折叠**：预设有十几条，全铺开会把下面的地址/Key/模型整个推到屏幕外，
+    // 而那三个才是日常要改的。这里只显示当前选中的一条，点「更换」才展开。
     val preset = presetOf(provider)
+    var presetOpen by remember { mutableStateOf(false) }
     SmallTitle(text = "服务商")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         BasicComponent(
-            title = "自定义（自己填）",
-            summary = "不套预设，地址和模型都自己写",
-            onClick = { provider = "" },
+            title = preset?.label ?: "自定义（自己填）",
+            summary = preset?.baseUrl ?: "不套预设，地址和模型都自己写",
+            onClick = { presetOpen = !presetOpen },
             rightActions = {
-                if (provider.isBlank()) {
-                    Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
-                }
+                Text(
+                    if (presetOpen) "收起" else "更换",
+                    fontSize = 13.sp,
+                    color = c.primary,
+                )
             },
         )
-        PROVIDER_PRESETS.forEach { pr ->
+        if (presetOpen) {
             HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
             BasicComponent(
-                title = pr.label,
-                summary = pr.baseUrl,
+                title = "自定义（自己填）",
                 onClick = {
-                    // 和旧界面同一套：写草稿，不改别的
-                    provider = pr.id
-                    url = pr.baseUrl
-                    shape = pr.shape.id
-                    if (pr.model.isNotBlank()) model = pr.model
+                    provider = ""
+                    presetOpen = false
                 },
                 rightActions = {
-                    if (provider == pr.id) {
+                    if (provider.isBlank()) {
                         Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
                     }
                 },
             )
+            PROVIDER_PRESETS.forEach { pr ->
+                HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+                BasicComponent(
+                    title = pr.label,
+                    summary = pr.baseUrl,
+                    onClick = {
+                        // 和旧界面同一套：写草稿，不改别的
+                        provider = pr.id
+                        url = pr.baseUrl
+                        shape = pr.shape.id
+                        if (pr.model.isNotBlank()) model = pr.model
+                        presetOpen = false
+                    },
+                    rightActions = {
+                        if (provider == pr.id) {
+                            Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                        }
+                    },
+                )
+            }
         }
     }
     preset?.note?.takeIf { it.isNotBlank() }?.let {
