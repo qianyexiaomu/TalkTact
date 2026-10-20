@@ -70,6 +70,10 @@ import dev.goutou.wingman.llm.PROVIDER_PRESETS
 import dev.goutou.wingman.llm.presetOf
 import dev.goutou.wingman.llm.BUILT_IN_SKILLS
 import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
+import dev.goutou.wingman.llm.MAX_CUSTOM_LABEL_LEN
+import dev.goutou.wingman.llm.MAX_CUSTOM_STYLES
+import dev.goutou.wingman.llm.ReplyStyle
+import dev.goutou.wingman.llm.customStyle
 import dev.goutou.wingman.llm.FULL_PROMPT
 import dev.goutou.wingman.llm.applyReplyPlan
 import dev.goutou.wingman.llm.MAX_REPLIES
@@ -137,6 +141,25 @@ fun MiuixPreviewScreen(
             store.save(next)
             cfg = store.load()
         }
+        // 自定义风格：新增后**顺手选上**（和旧界面一致），否则加了还要再点一次药丸
+        val addCustomStyle: (String, String) -> Boolean = { label, hint ->
+            val st = customStyle(label, hint)
+            if (st == null) {
+                false
+            } else {
+                store.saveCustomStyles(cfg.replyCustomStyles + st)
+                val known = REPLY_STYLES.map { it.id }.toSet() + (cfg.replyCustomStyles + st).map { it.id }
+                val base = cfg.replyStyleIds.ifEmpty { DEFAULT_STYLE_IDS }
+                store.saveReplyPlan(toggledStyleIds(base, st.id, MAX_REPLIES, known))
+                cfg = store.load()
+                true
+            }
+        }
+        // 删除：`saveCustomStyles` 会按「还存在的风格」重拼提示词，所以不用手动改勾选
+        val removeCustomStyle: (ReplyStyle) -> Unit = { st ->
+            store.saveCustomStyles(cfg.replyCustomStyles.filterNot { it.id == st.id })
+            cfg = store.load()
+        }
         // 白名单这类**窄写入**（只动一两个字段）用完重读一次
         val reload: () -> Unit = { cfg = store.load() }
         // 风格勾选规则**必须**走 llm/toggledStyleIds：新点的一定留下、位置不够让末尾、
@@ -201,7 +224,7 @@ fun MiuixPreviewScreen(
                     when (page) {
                         1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
                         2 -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
-                        3 -> ReplyStylePage(c, cfg, toggleStyle, onOld = onBack) { page = 0 }
+                        3 -> ReplyStylePage(c, cfg, toggleStyle, addCustomStyle, removeCustomStyle, onOld = onBack) { page = 0 }
                         4 -> EndpointPage(c, cfg, save, onOld = onBack) { page = 0 }
                         5 -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
                         6 -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
@@ -1007,6 +1030,8 @@ private fun ReplyStylePage(
     c: Colors,
     cfg: ConfigData,
     onToggle: (String) -> Unit,
+    onAddCustom: (String, String) -> Boolean,
+    onRemoveCustom: (ReplyStyle) -> Unit,
     onOld: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -1032,9 +1057,69 @@ private fun ReplyStylePage(
         }
     }
 
+    val customs = cfg.replyCustomStyles
+    var newName by remember { mutableStateOf("") }
+    var newHint by remember { mutableStateOf("") }
+    var addNote by remember { mutableStateOf<String?>(null) }
+
+    SmallTitle(text = "自定义（${customs.size}/$MAX_CUSTOM_STYLES）")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        if (customs.isEmpty()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("还没有自定义风格", fontSize = 13.sp, color = c.onSurface)
+                Spacer(Modifier.height(3.dp))
+                Text("比如「毒舌」「哄小孩」，写完会在上面多一个可勾选的药丸", fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        } else {
+            customs.forEachIndexed { i, st ->
+                BasicComponent(
+                    title = st.label,
+                    summary = st.hint.ifBlank { null },
+                    rightActions = { Text("删除", fontSize = 13.sp, color = Color(0xFFD64545)) },
+                    onClick = { onRemoveCustom(st) },
+                )
+                if (i != customs.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            }
+        }
+    }
+
+    if (customs.size < MAX_CUSTOM_STYLES) {
+        SmallTitle(text = "加一个")
+        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            TextField(
+                value = newName,
+                onValueChange = { if (it.length <= MAX_CUSTOM_LABEL_LEN) newName = it },
+                label = "风格名（最多 $MAX_CUSTOM_LABEL_LEN 字，比如：撒娇）",
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextField(
+                value = newHint,
+                onValueChange = { newHint = it },
+                label = "说明（给模型看：用撒娇的语气带点抱怨）",
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            PrimaryButton(text = "添加", enabled = newName.isNotBlank()) {
+                addNote = if (onAddCustom(newName.trim(), newHint.trim())) {
+                    "已添加并选中"
+                } else {
+                    "加不上：名字为空、重复、或已满 $MAX_CUSTOM_STYLES 个"
+                }
+                if (addNote == "已添加并选中") {
+                    newName = ""
+                    newHint = ""
+                }
+            }
+            addNote?.let {
+                Text(it, fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        }
+    }
+
     SmallTitle(text = "更多")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "自定义风格 / 按联系人单独设置", summary = "这些在旧界面里调", onClick = onOld)
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperArrow(title = "按联系人单独设置风格", summary = "这个还在旧界面里（下一步搬）", onClick = onOld)
     }
     Spacer(Modifier.height(24.dp))
 }
