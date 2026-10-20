@@ -92,6 +92,7 @@ import dev.goutou.wingman.ui.skillName
 import dev.goutou.wingman.ui.moduleActive
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -237,7 +238,7 @@ fun MiuixPreviewScreen(
                 ) {
                     when (page) {
                         1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
-                        2 -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
+                        2 -> AutoAnalyzePage(c, cfg, save, onWhitelist = { page = 9 }) { page = 0 }
                         3 -> ReplyStylePage(
                             c, cfg, toggleStyle, addCustomStyle, removeCustomStyle,
                             onOpenChatStyles = { page = 12 },
@@ -1065,9 +1066,53 @@ private fun AppearancePage(
         }
     }
 
+    // 滑杆是**连续**的：每动一格就写一次 prefs 太重（`save` 还会重拼提示词快照），
+    // 所以和地址一样走草稿 + 显式保存；档位那种离散选择才立刻生效。
+    var alpha by remember(cfg.glassAlpha) { mutableStateOf(cfg.glassAlpha) }
+    var blur by remember(cfg.glassBlur) { mutableStateOf(cfg.glassBlur) }
+    val frostedDirty = alpha != cfg.glassAlpha || blur != cfg.glassBlur
+
+    SmallTitle(text = "磨砂")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                "不透明度 ${(alpha * 100).toInt()}%",
+                fontSize = 13.sp,
+                color = c.onSurface,
+            )
+            Slider(
+                progress = alpha,
+                minValue = 0.3f,
+                maxValue = 1f,
+                onProgressChange = { alpha = it },
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "背景模糊 ${blur.toInt()}dp",
+                fontSize = 13.sp,
+                color = c.onSurface,
+            )
+            Slider(
+                progress = blur,
+                minValue = 0f,
+                maxValue = 40f,
+                decimalPlaces = 0,
+                onProgressChange = { blur = it },
+            )
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    PrimaryButton(
+        text = if (frostedDirty) "保存" else "已保存",
+        enabled = frostedDirty,
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        save(cfg.copy(glassAlpha = alpha, glassBlur = blur))
+    }
+
     SmallTitle(text = "更多")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "不透明度 / 模糊 / 背景图", summary = "这三项在旧界面里调", onClick = onOld)
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperArrow(title = "背景图", summary = "换聊天背景（还在旧界面里）", onClick = onOld)
     }
     Spacer(Modifier.height(24.dp))
 }
@@ -1078,7 +1123,7 @@ private fun AutoAnalyzePage(
     c: Colors,
     cfg: ConfigData,
     save: (ConfigData) -> Unit,
-    onOld: () -> Unit,
+    onWhitelist: () -> Unit,
     onBack: () -> Unit,
 ) {
     DetailHeader(c, "自动分析", onBack)
@@ -1102,9 +1147,21 @@ private fun AutoAnalyzePage(
         }
     }
 
+    SmallTitle(text = "内容与温度")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "允许敏感内容",
+            summary = "关掉时，检测到敏感内容会先问你一次再发",
+            checked = cfg.allowSensitive,
+            onCheckedChange = { save(cfg.copy(allowSensitive = it)) },
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        TempRow(c, cfg.temperature) { save(cfg.copy(temperature = it)) }
+    }
+
     SmallTitle(text = "更多")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "白名单 / 敏感内容 / 温度", summary = "这些在旧界面里调", onClick = onOld)
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperArrow(title = "会话白名单", summary = "转到「会话白名单」页", onClick = { onWhitelist() })
     }
     Spacer(Modifier.height(24.dp))
 }
@@ -2057,6 +2114,41 @@ private fun ChatStyleEditPage(
         )
     }
     Spacer(Modifier.height(24.dp))
+}
+
+/** 温度：0.0–2.0，步进 0.1。用 − / ＋ 而不是滑杆 —— 这个值需要的是精确到 0.1，滑杆对不准。 */
+@Composable
+private fun TempRow(c: Colors, value: Double, onChange: (Double) -> Unit) {
+    BasicComponent(
+        title = "温度",
+        summary = "越高越放飞，越低越稳（一般 0.7–1.0）",
+        rightActions = {
+            Text(
+                "−",
+                fontSize = 20.sp,
+                color = c.primary,
+                modifier = Modifier
+                    .clickable { onChange((value - 0.1).coerceAtLeast(0.0)) }
+                    .padding(horizontal = 10.dp),
+            )
+            Text(
+                "%.1f".format(value),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = c.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.widthIn(min = 44.dp),
+            )
+            Text(
+                "＋",
+                fontSize = 18.sp,
+                color = c.primary,
+                modifier = Modifier
+                    .clickable { onChange((value + 0.1).coerceAtMost(2.0)) }
+                    .padding(horizontal = 10.dp),
+            )
+        },
+    )
 }
 
 @Composable
