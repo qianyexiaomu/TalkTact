@@ -370,6 +370,14 @@ class ScreenRenderTest {
         capture("miuix-backup")
     }
 
+    /** Miuix 二级页：本地代理。 */
+    @Test
+    fun `Miuix 代理页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 11) {} }
+        rule.onNodeWithText("端口").assertExists()
+        capture("miuix-proxy")
+    }
+
     /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
     @Test
     fun `Miuix 角色详情能渲染`() {

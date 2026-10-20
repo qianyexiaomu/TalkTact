@@ -65,6 +65,7 @@ import dev.goutou.wingman.config.GLASS_QUALITY_LOW
 import dev.goutou.wingman.config.IMAGE_MODE_OCR
 import dev.goutou.wingman.config.IMAGE_MODE_OCR_THEN_VISION
 import dev.goutou.wingman.config.IMAGE_MODE_VISION
+import dev.goutou.wingman.llm.ApiShape
 import dev.goutou.wingman.llm.BUILT_IN_SKILLS
 import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
 import dev.goutou.wingman.llm.FULL_PROMPT
@@ -76,6 +77,7 @@ import dev.goutou.wingman.wechat.ChatMsg
 import dev.goutou.wingman.wechat.Sensitive
 import dev.goutou.wingman.config.replyPlan
 import dev.goutou.wingman.ui.RadiusR2
+import dev.goutou.wingman.proxy.ProxyService
 import dev.goutou.wingman.ui.appVersion
 import dev.goutou.wingman.ui.buildDiagZip
 import dev.goutou.wingman.ui.formatTime
@@ -204,7 +206,8 @@ fun MiuixPreviewScreen(
                         7 -> AboutPage(c, store) { page = 0 }
                         8 -> DiagnosticPage(c, store, cfg, save) { page = 0 }
                         9 -> WhitelistPage(c, store, cfg, reload) { page = 0 }
-                        else -> BackupPage(c, store, cfg, reload) { page = 0 }
+                        10 -> BackupPage(c, store, cfg, reload) { page = 0 }
+                        else -> ProxyPage(c, store, cfg) { page = 0 }
                     }
                 }
             }
@@ -838,6 +841,8 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(title = "外观与背景", summary = "玻璃强度 / 背景图 / 深色", onClick = { onOpenPage(1) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        SuperArrow(title = "本地代理", summary = "API Key 不出本应用", onClick = { onOpenPage(11) })
+        HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = { onOpenPage(4) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = { onOpenPage(3) })
@@ -1051,14 +1056,17 @@ private fun EndpointPage(
     var url by remember(cfg.baseUrl) { mutableStateOf(cfg.baseUrl) }
     var key by remember(cfg.apiKey) { mutableStateOf(cfg.apiKey) }
     var model by remember(cfg.model) { mutableStateOf(cfg.model) }
-    val dirty = url != cfg.baseUrl || key != cfg.apiKey || model != cfg.model
+    var shape by remember(cfg.apiShape) { mutableStateOf(cfg.apiShape) }
+    var customPath by remember(cfg.customPath) { mutableStateOf(cfg.customPath) }
+    val dirty = url != cfg.baseUrl || key != cfg.apiKey || model != cfg.model ||
+        shape != cfg.apiShape || customPath != cfg.customPath
 
     SmallTitle(text = "接口")
     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextField(
             value = url,
             onValueChange = { url = it },
-            label = "接口地址（OpenAI 兼容，写到 /v1）",
+            label = "接口地址（写到 /v1）",
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -1079,23 +1087,70 @@ private fun EndpointPage(
         )
     }
 
+    SmallTitle(text = "接口形态")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        ApiShape.values().forEachIndexed { i, sh ->
+            BasicComponent(
+                title = sh.label,
+                summary = sh.note,
+                onClick = { shape = sh.id },
+                rightActions = {
+                    if (shape == sh.id) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+            if (i != ApiShape.values().lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+    if (shape == ApiShape.CUSTOM.id) {
+        Spacer(Modifier.height(10.dp))
+        Column(Modifier.padding(horizontal = 12.dp)) {
+            TextField(
+                value = customPath,
+                onValueChange = { customPath = it },
+                label = "自定义路径（留空 = 地址本身就是完整端点）",
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+
     Spacer(Modifier.height(14.dp))
     PrimaryButton(
         text = if (dirty) "保存" else "已保存",
         enabled = dirty,
         modifier = Modifier.padding(horizontal = 12.dp),
     ) {
-        save(cfg.copy(baseUrl = url.trim(), apiKey = key.trim(), model = model.trim()))
+        save(
+            cfg.copy(
+                baseUrl = url.trim(),
+                apiKey = key.trim(),
+                model = model.trim(),
+                apiShape = shape,
+                customPath = customPath.trim(),
+            ),
+        )
+    }
+
+    SmallTitle(text = "生成模式")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "分级模式（两路并行）",
+            summary = "风险判断和写回复分开跑，写得更快；要配第二套接口",
+            checked = cfg.graded,
+            // 这是运行时开关，点一下立刻生效（和上面的地址不同：改到一半不该生效）
+            onCheckedChange = { save(cfg.copy(graded = it)) },
+        )
     }
 
     SmallTitle(text = "更多")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        SuperArrow(title = "服务商预设 / 接口形态 / 第二套接口", summary = "这些在旧界面里调", onClick = onOld)
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperArrow(title = "服务商预设 / 第二套接口", summary = "这些在旧界面里调", onClick = onOld)
     }
     Spacer(Modifier.height(24.dp))
 }
 
-/** 图片与 OCR：一个总开关 + 三档「图怎么交给模型」。 */
 @Composable
 private fun ImagePage(
     c: Colors,
@@ -1472,6 +1527,80 @@ private fun BackupPage(
     )
     PrimaryButton(text = "选择文件导入", enabled = true, modifier = Modifier.padding(horizontal = 12.dp)) {
         importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+    }
+
+    note?.let {
+        Spacer(Modifier.height(10.dp))
+        Text(it, fontSize = 12.sp, color = c.onBackgroundVariant, modifier = Modifier.padding(horizontal = 26.dp))
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/**
+ * 本地代理：开了之后，聊天内容先发到 127.0.0.1，由 App 带上 Key 再打出去。
+ *
+ * 开关**立刻落盘 + 立刻起停服务**（`ProxyService.start/stop`）—— 注入侧是按
+ * `proxyEnabled` 决定走哪条路的，只写配置不启停等于开了个假开关。
+ * 换端口需要重启服务才生效，所以端口是「保存端口」按钮，不是边输边生效。
+ */
+@Composable
+private fun ProxyPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var portText by remember(cfg.proxyPort) { mutableStateOf(cfg.proxyPort.toString()) }
+    val port = portText.toIntOrNull()
+    val portOk = port != null && port in 1024..65535
+    var note by remember { mutableStateOf<String?>(null) }
+
+    fun apply(next: ConfigData, restart: Boolean) {
+        store.save(next)
+        if (restart) {
+            ProxyService.stop(context)
+            if (next.proxyEnabled) ProxyService.start(context)
+        }
+    }
+
+    DetailHeader(c, "本地代理", onBack)
+    Text(
+        "开启后：聊天内容先送到本机 127.0.0.1，由这个 App 带上 Key 去调你的接口。" +
+            "Key 不出 App 进程，微信那边看不到。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
+
+    SmallTitle(text = "开关")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "走本地代理",
+            summary = "只支持 OpenAI 兼容形态；别的形态请直连",
+            checked = cfg.proxyEnabled,
+            onCheckedChange = { on ->
+                apply(cfg.copy(proxyEnabled = on), restart = true)
+                note = if (on) "已开启" else "已关闭"
+            },
+        )
+    }
+
+    SmallTitle(text = "端口")
+    Column(Modifier.padding(horizontal = 12.dp)) {
+        TextField(
+            value = portText,
+            onValueChange = { portText = it.filter { ch -> ch.isDigit() }.take(5) },
+            label = "端口（1024 - 65535）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton(
+            text = "保存端口",
+            enabled = portOk && portText != cfg.proxyPort.toString(),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (port != null) {
+                apply(cfg.copy(proxyPort = port), restart = cfg.proxyEnabled)
+                note = "端口已改为 $port${if (cfg.proxyEnabled) "，服务已重启" else ""}"
+            }
+        }
     }
 
     note?.let {
