@@ -78,6 +78,7 @@ import dev.goutou.wingman.llm.FULL_PROMPT
 import dev.goutou.wingman.llm.applyReplyPlan
 import dev.goutou.wingman.llm.MAX_REPLIES
 import dev.goutou.wingman.llm.REPLY_STYLES
+import dev.goutou.wingman.llm.RemoteSkill
 import dev.goutou.wingman.llm.toggledStyleIds
 import dev.goutou.wingman.wechat.ChatMsg
 import dev.goutou.wingman.wechat.Sensitive
@@ -443,6 +444,11 @@ private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier 
 private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (ConfigData) -> Unit) {
     var text by remember(cfg.prompt) { mutableStateOf(cfg.prompt) }
     var confirmReset by remember { mutableStateOf(false) }
+    var importOpen by remember { mutableStateOf(false) }
+    var url by remember { mutableStateOf("") }
+    var importing by remember { mutableStateOf(false) }
+    var importNote by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val dirty = text != cfg.prompt
 
     Row(
@@ -506,6 +512,61 @@ private fun MentorTab(c: Colors, store: ConfigStore, cfg: ConfigData, save: (Con
                 },
             )
             if (i != BUILT_IN_SKILLS.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+
+    SmallTitle(text = "从链接导入")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = if (importOpen) "收起" else "粘一个 SKILL.md 的地址",
+            summary = "GitHub 页面地址也行（会自动换成 raw 直链）",
+            onClick = { importOpen = !importOpen },
+            rightActions = { Text(if (importOpen) "收起" else "展开", fontSize = 13.sp, color = c.primary) },
+        )
+        if (importOpen) {
+            HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            Column(Modifier.padding(16.dp)) {
+                TextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = "https://github.com/…/SKILL.md",
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(10.dp))
+                PrimaryButton(
+                    text = if (importing) "导入中…" else "导入并启用",
+                    enabled = !importing && url.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    importing = true
+                    importNote = null
+                    val target = url
+                    scope.launch {
+                        importNote = try {
+                            val fetched = withContext(Dispatchers.IO) { RemoteSkill.fetch(target) }
+                            // 和旧界面同一套：导入的内容**原样**当提示词（不套 applyReplyPlan），
+                            // skillId 记 "custom"，token 放开 —— 导入的 skill 可能很长
+                            val cur = store.load()
+                            save(cur.copy(prompt = fetched, skillId = "custom", maxTokens = 0))
+                            url = ""
+                            importOpen = false
+                            "导入成功 · ${fetched.length} 字，已启用"
+                        } catch (t: Throwable) {
+                            "导入失败：${t.message}"
+                        }
+                        importing = false
+                    }
+                }
+                importNote?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        it,
+                        fontSize = 12.sp,
+                        color = if (it.startsWith("导入成功")) c.primary else Color(0xFFD64545),
+                    )
+                }
+            }
         }
     }
 
