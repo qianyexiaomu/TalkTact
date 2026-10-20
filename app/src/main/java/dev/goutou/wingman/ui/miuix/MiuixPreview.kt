@@ -132,6 +132,8 @@ fun MiuixPreviewScreen(
             store.save(next)
             cfg = store.load()
         }
+        // 白名单这类**窄写入**（只动一两个字段）用完重读一次
+        val reload: () -> Unit = { cfg = store.load() }
         // 风格勾选规则**必须**走 llm/toggledStyleIds：新点的一定留下、位置不够让末尾、
         // 点掉最后一个 = 保持现状。在这里另写一遍 = 迟早和旧界面对不上。
         val toggleStyle: (String) -> Unit = { id ->
@@ -199,7 +201,8 @@ fun MiuixPreviewScreen(
                         5 -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
                         6 -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
                         7 -> AboutPage(c, store) { page = 0 }
-                        else -> DiagnosticPage(c, store, cfg, save) { page = 0 }
+                        8 -> DiagnosticPage(c, store, cfg, save) { page = 0 }
+                        else -> WhitelistPage(c, store, cfg, reload) { page = 0 }
                     }
                 }
             }
@@ -841,7 +844,7 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(title = "自动分析", summary = "开关 / 频率 / 参考条数", onClick = { onOpenPage(2) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        SuperArrow(title = "会话白名单", summary = "只在这些聊天里工作", onClick = onOld)
+        SuperArrow(title = "会话白名单", summary = "只在这些聊天里工作", onClick = { onOpenPage(9) })
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = { onOpenPage(5) })
     }
@@ -856,7 +859,7 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
 
     Spacer(Modifier.height(18.dp))
     Text(
-        "只剩「会话白名单」和「备份与迁移」还在旧界面，其余都已经是新界面。",
+        "只剩「备份与迁移」还在旧界面，其余都已经是新界面。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 28.dp),
@@ -1261,6 +1264,122 @@ private fun DiagRow(
             }
         },
     )
+}
+
+/**
+ * 会话白名单。
+ *
+ * 写入走 `store.saveWhitelist(enabled, chats)` 这个**窄接口**，不用 `save(整份配置)` ——
+ * 这页只动这两个字段，整份覆盖会把别处还没保存的草稿一起冲掉（旧界面当初也是这么分开的）。
+ *
+ * 候选来自 `store.chatCandidates()`（注入侧读到的会话名）。只列**还没加入**的，
+ * 不然一份几百人的名单里混着已加入的，找起来很烦。
+ */
+@Composable
+private fun WhitelistPage(
+    c: Colors,
+    store: ConfigStore,
+    cfg: ConfigData,
+    reload: () -> Unit,
+    onBack: () -> Unit,
+) {
+    var tick by remember { mutableIntStateOf(0) }
+    var typed by remember { mutableStateOf("") }
+    val cands = remember(tick) { store.chatCandidates() }
+
+    fun write(enabled: Boolean, chats: Set<String>) {
+        store.saveWhitelist(enabled, chats)
+        reload()
+    }
+
+    DetailHeader(c, "会话白名单", onBack)
+    Text(
+        "开着「自动分析」时，只在名单里的聊天里工作。名单空着 = 哪儿都不工作。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
+
+    SmallTitle(text = "开关")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        SuperSwitch(
+            title = "只在这些聊天里工作",
+            summary = "关掉的话所有聊天都会自动分析",
+            checked = cfg.whitelistEnabled,
+            onCheckedChange = { write(it, cfg.whitelist) },
+        )
+    }
+
+    SmallTitle(text = "已加入（${cfg.whitelist.size}）")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        if (cfg.whitelist.isEmpty()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("名单是空的", fontSize = 13.sp, color = c.onSurface)
+                Spacer(Modifier.height(3.dp))
+                Text("下面可以手动填，也可以从「微信里读到的」里点", fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        } else {
+            val names = cfg.whitelist.toList()
+            names.forEachIndexed { i, name ->
+                BasicComponent(
+                    title = name,
+                    rightActions = { Text("移除", fontSize = 13.sp, color = Color(0xFFD64545)) },
+                    onClick = { write(cfg.whitelistEnabled, cfg.whitelist - name) },
+                )
+                if (i != names.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            }
+        }
+    }
+
+    SmallTitle(text = "手动加一个")
+    Column(Modifier.padding(horizontal = 12.dp)) {
+        TextField(
+            value = typed,
+            onValueChange = { typed = it },
+            label = "会话名（和微信里显示的一致）",
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        PrimaryButton(text = "加入名单", enabled = typed.isNotBlank()) {
+            write(cfg.whitelistEnabled, cfg.whitelist + typed.trim())
+            typed = ""
+        }
+    }
+
+    val rest = cands.filter { it !in cfg.whitelist }
+    SmallTitle(text = "微信里读到的（${rest.size} 个未加入）")
+    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
+        if (rest.isEmpty()) {
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "还没有候选：去微信首页 / 通讯录停两秒，再回来点下面刷新。",
+                    fontSize = 12.sp,
+                    color = c.onSurfaceVariantSummary,
+                )
+            }
+        } else {
+            rest.take(30).forEachIndexed { i, name ->
+                BasicComponent(
+                    title = name,
+                    rightActions = { Text("加入", fontSize = 13.sp, color = c.primary) },
+                    onClick = { write(cfg.whitelistEnabled, cfg.whitelist + name) },
+                )
+                if (i != rest.take(30).lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "刷新",
+        fontSize = 14.sp,
+        color = c.primary,
+        modifier = Modifier
+            .padding(horizontal = 26.dp)
+            .clickable { tick++ }
+            .padding(vertical = 8.dp),
+    )
+    Spacer(Modifier.height(24.dp))
 }
 
 @Composable

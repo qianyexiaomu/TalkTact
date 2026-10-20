@@ -354,6 +354,14 @@ class ScreenRenderTest {
         capture("miuix-diag")
     }
 
+    /** Miuix 二级页：会话白名单。 */
+    @Test
+    fun `Miuix 白名单页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 9) {} }
+        rule.onNodeWithText("开关").assertExists()
+        capture("miuix-whitelist")
+    }
+
     /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
     @Test
     fun `Miuix 角色详情能渲染`() {
