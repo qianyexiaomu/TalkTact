@@ -124,6 +124,8 @@ fun MiuixPreviewScreen(
     initialPage: Int = 0,
     /** 配合 initialPage = 6：直接打开哪一份角色档案。 */
     initialRoleKey: String? = null,
+    /** 配合 initialPage = 13：直接打开哪个会话的「单独风格」。 */
+    initialChatKey: String? = null,
     // onBack 必须是**最后一个参数**：调用点是 `MiuixPreviewScreen(store) { ... }` 的尾随 lambda 写法，
     // 末尾一旦换成 Int，lambda 就绑不上去了。
     onBack: () -> Unit,
@@ -136,6 +138,8 @@ fun MiuixPreviewScreen(
         var page by remember { mutableIntStateOf(initialPage) }
         // 打开的是哪一份角色档案（page == 6 时有效）
         var roleKey by remember { mutableStateOf(initialRoleKey) }
+        // 正在编辑「按联系人设风格」的哪一个会话（page == 13）
+        var chatKey by remember { mutableStateOf(initialChatKey) }
         // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
         val save: (ConfigData) -> Unit = { next ->
             store.save(next)
@@ -158,6 +162,15 @@ fun MiuixPreviewScreen(
         // 删除：`saveCustomStyles` 会按「还存在的风格」重拼提示词，所以不用手动改勾选
         val removeCustomStyle: (ReplyStyle) -> Unit = { st ->
             store.saveCustomStyles(cfg.replyCustomStyles.filterNot { it.id == st.id })
+            cfg = store.load()
+        }
+        // 按联系人设风格：`setChatStyles` 会把空列表原样保留（= 已添加、先跟随全局）
+        val setChatStyles: (String, List<String>) -> Unit = { name, ids ->
+            store.setChatStyles(cfg.chatStyles + (name to ids))
+            cfg = store.load()
+        }
+        val removeChatStyle: (String) -> Unit = { name ->
+            store.setChatStyles(cfg.chatStyles - name)
             cfg = store.load()
         }
         // 白名单这类**窄写入**（只动一两个字段）用完重读一次
@@ -224,7 +237,10 @@ fun MiuixPreviewScreen(
                     when (page) {
                         1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
                         2 -> AutoAnalyzePage(c, cfg, save, onOld = onBack) { page = 0 }
-                        3 -> ReplyStylePage(c, cfg, toggleStyle, addCustomStyle, removeCustomStyle, onOld = onBack) { page = 0 }
+                        3 -> ReplyStylePage(
+                            c, cfg, toggleStyle, addCustomStyle, removeCustomStyle,
+                            onOpenChatStyles = { page = 12 },
+                        ) { page = 0 }
                         4 -> EndpointPage(c, cfg, save, onOld = onBack) { page = 0 }
                         5 -> ImagePage(c, cfg, store, onOld = onBack) { page = 0 }
                         6 -> RoleDetailPage(c, store, roleKey, onBack = { page = 1 })
@@ -232,7 +248,15 @@ fun MiuixPreviewScreen(
                         8 -> DiagnosticPage(c, store, cfg, save) { page = 0 }
                         9 -> WhitelistPage(c, store, cfg, reload) { page = 0 }
                         10 -> BackupPage(c, store, cfg, reload) { page = 0 }
-                        else -> ProxyPage(c, store, cfg) { page = 0 }
+                        11 -> ProxyPage(c, store, cfg) { page = 0 }
+                        12 -> ChatStylesPage(
+                            c, store, cfg, setChatStyles,
+                            onOpen = { chatKey = it; page = 13 },
+                        ) { page = 3 }
+                        else -> ChatStyleEditPage(
+                            c, cfg, chatKey, setChatStyles,
+                            onRemove = { removeChatStyle(it); page = 12 },
+                        ) { page = 12 }
                     }
                 }
             }
@@ -1032,7 +1056,7 @@ private fun ReplyStylePage(
     onToggle: (String) -> Unit,
     onAddCustom: (String, String) -> Boolean,
     onRemoveCustom: (ReplyStyle) -> Unit,
-    onOld: () -> Unit,
+    onOpenChatStyles: () -> Unit,
     onBack: () -> Unit,
 ) {
     DetailHeader(c, "回复风格", onBack)
@@ -1119,7 +1143,7 @@ private fun ReplyStylePage(
 
     SmallTitle(text = "更多")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        SuperArrow(title = "按联系人单独设置风格", summary = "这个还在旧界面里（下一步搬）", onClick = onOld)
+        SuperArrow(title = "按联系人单独设置风格", summary = "给某几个人换一套风格", onClick = { onOpenChatStyles() })
     }
     Spacer(Modifier.height(24.dp))
 }
@@ -1813,6 +1837,163 @@ private fun ProxyPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: ()
     note?.let {
         Spacer(Modifier.height(10.dp))
         Text(it, fontSize = 12.sp, color = c.onBackgroundVariant, modifier = Modifier.padding(horizontal = 26.dp))
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/**
+ * 按联系人设风格：列表。
+ *
+ * `cfg.chatStyles` 里 **空列表是合法状态** = 「已添加、但先跟随全局」——
+ * 所以这一页不能把空列表当成「没有设置」删掉，添加时也故意写成空列表。
+ */
+@Composable
+private fun ChatStylesPage(
+    c: Colors,
+    store: ConfigStore,
+    cfg: ConfigData,
+    onSet: (String, List<String>) -> Unit,
+    onOpen: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    var tick by remember { mutableIntStateOf(0) }
+    var pickOpen by remember { mutableStateOf(false) }
+    val cands = remember(tick) { store.chatCandidates() }
+
+    DetailHeader(c, "按联系人设风格", onBack)
+    Text(
+        "给某几个人单独一套风格；没列在这里的会话，都用上面「回复风格」里勾的那套。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
+
+    SmallTitle(text = "已设置（${cfg.chatStyles.size}）")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        if (cfg.chatStyles.isEmpty()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("还没有单独的设置", fontSize = 13.sp, color = c.onSurface)
+                Spacer(Modifier.height(3.dp))
+                Text("下面可以选一个人加上", fontSize = 12.sp, color = c.onSurfaceVariantSummary)
+            }
+        } else {
+            val names = cfg.chatStyles.keys.toList()
+            names.forEachIndexed { i, name ->
+                val ids = cfg.chatStyles[name].orEmpty()
+                BasicComponent(
+                    title = name,
+                    summary = if (ids.isEmpty()) "跟随全局" else "${ids.size} 种（单独）",
+                    onClick = { onOpen(name) },
+                )
+                if (i != names.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            }
+        }
+    }
+
+    SmallTitle(text = "添加")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = if (pickOpen) "收起候选" else "从微信读到的会话里选",
+            summary = "已添加的不会再出现",
+            onClick = { pickOpen = !pickOpen; tick++ },
+            rightActions = { Text(if (pickOpen) "收起" else "展开", fontSize = 13.sp, color = c.primary) },
+        )
+        if (pickOpen) {
+            val rest = cands.filter { it !in cfg.chatStyles }
+            if (rest.isEmpty()) {
+                HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "没有可选的了：去微信首页 / 通讯录停两秒再回来展开。",
+                        fontSize = 12.sp,
+                        color = c.onSurfaceVariantSummary,
+                    )
+                }
+            } else {
+                rest.take(30).forEach { name ->
+                    HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+                    BasicComponent(
+                        title = name,
+                        onClick = { onSet(name, emptyList()) },
+                        rightActions = { Text("加入", fontSize = 13.sp, color = c.primary) },
+                    )
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/** 单个会话的风格勾选。一个都不勾 = 跟随全局（所以不做「至少选一个」的限制）。 */
+@Composable
+private fun ChatStyleEditPage(
+    c: Colors,
+    cfg: ConfigData,
+    key: String?,
+    onSet: (String, List<String>) -> Unit,
+    onRemove: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    val name = key
+    val ids = name?.let { cfg.chatStyles[it] }.orEmpty()
+
+    DetailHeader(c, name ?: "按联系人设风格", onBack)
+    if (name == null) {
+        SmallTitle(text = "设置")
+        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                Text("没选中会话", fontSize = 13.sp, color = c.onSurface)
+            }
+        }
+        return
+    }
+
+    Text(
+        "一个都不勾 = 跟随全局。勾了就只按勾的这几条写（勾几种就写几条）。",
+        fontSize = 12.sp,
+        color = c.onBackgroundVariant,
+        modifier = Modifier.padding(horizontal = 26.dp),
+    )
+
+    val known = REPLY_STYLES.map { it.id }.toSet() + cfg.replyCustomStyles.map { it.id }
+    val all = REPLY_STYLES + cfg.replyCustomStyles
+    SmallTitle(text = if (ids.isEmpty()) "当前：跟随全局" else "当前：${ids.size} 种")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        all.forEachIndexed { i, st ->
+            BasicComponent(
+                title = st.label,
+                summary = st.hint.takeIf { st.hint.isNotBlank() && st.id !in REPLY_STYLES.map { it.id } },
+                onClick = {
+                    val next = toggledStyleIds(ids, st.id, MAX_REPLIES, known)
+                    onSet(name, next)
+                },
+                rightActions = {
+                    if (st.id in ids) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+            if (i != all.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "清空（改为跟随全局）",
+        fontSize = 14.sp,
+        color = c.primary,
+        modifier = Modifier.padding(horizontal = 26.dp).clickable {
+            onSet(name, emptyList())
+        }.padding(vertical = 8.dp),
+    )
+
+    SmallTitle(text = "危险操作")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "移除这个联系人",
+            summary = "从「按联系人设风格」里去掉，回到跟随全局",
+            titleColor = Color(0xFFD64545),
+            onClick = { onRemove(name) },
+        )
     }
     Spacer(Modifier.height(24.dp))
 }

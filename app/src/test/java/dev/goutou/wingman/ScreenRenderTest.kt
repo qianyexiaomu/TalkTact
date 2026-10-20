@@ -378,6 +378,24 @@ class ScreenRenderTest {
         capture("miuix-proxy")
     }
 
+    /** Miuix 二级页：按联系人设风格（列表）。 */
+    @Test
+    fun `Miuix 按联系人页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialPage = 12) {} }
+        rule.onNodeWithText("已设置", substring = true).assertExists()
+        capture("miuix-chatstyles")
+    }
+
+    /** Miuix 三级页：给某个会话挑风格。 */
+    @Test
+    fun `Miuix 会话风格页能渲染`() {
+        rule.setContent {
+            MiuixPreviewScreen(store, initialPage = 13, initialChatKey = "测试会话") {}
+        }
+        rule.onNodeWithText("当前：跟随全局").assertExists()
+        capture("miuix-chatstyle-edit")
+    }
+
     /** Miuix 二级页：角色详情（用常驻的「本人」那一条）。 */
     @Test
     fun `Miuix 角色详情能渲染`() {
