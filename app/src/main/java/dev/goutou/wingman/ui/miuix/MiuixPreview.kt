@@ -3,6 +3,7 @@ package dev.goutou.wingman.ui.miuix
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -29,12 +30,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -155,6 +158,14 @@ fun MiuixPreviewScreen(
         var roleKey by remember { mutableStateOf(initialRoleKey) }
         // 正在编辑「按联系人设风格」的哪一个会话（page == 13）
         var chatKey by remember { mutableStateOf(initialChatKey) }
+        // 系统返回：**先退二级页 → 再回首页标签 → 才交还给系统（退出）**。
+        // 以前没挂 BackHandler，系统直接按默认行为退出 —— 在一堆二级页里按返回，App 就没了。
+        BackHandler(enabled = page != 0 || tab != 0) {
+            when {
+                page != 0 -> page = 0
+                tab != 0 -> tab = 0
+            }
+        }
         // 立刻落盘：这些页都是「点一下就该生效」的选择型，不跟旧界面那个「保存」按钮走
         val save: (ConfigData) -> Unit = { next ->
             store.save(next)
@@ -1107,16 +1118,26 @@ private fun AboutPage(c: Colors, store: ConfigStore, onBack: () -> Unit) {
 @Composable
 private fun DetailHeader(c: Colors, title: String, onBack: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 22.dp, end = 24.dp, top = 18.dp, bottom = 2.dp),
+        Modifier.fillMaxWidth().padding(start = 14.dp, end = 24.dp, top = 14.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            "‹ 返回",
-            fontSize = 15.sp,
-            color = c.primary,
-            modifier = Modifier.clickable(onClick = onBack).padding(vertical = 8.dp, horizontal = 2.dp),
-        )
-        Spacer(Modifier.width(10.dp))
+        // 圆形图标按钮：比一行「‹ 返回」文字更像系统级返回，也不占标题的位置
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(c.secondaryContainer)
+                .clickable(onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = c.onSurface,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
         Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
     }
 }
@@ -1124,8 +1145,7 @@ private fun DetailHeader(c: Colors, title: String, onBack: () -> Unit) {
 /**
  * 外观：玻璃效果三档。
  *
- * 只搬「档位」这一组 —— 不透明度/模糊是连续滑杆，Miuix 这边还没有对应的控件，
- * 先用一条 SuperArrow 指回旧界面（迁移中，不做半吊子替代）。
+ * 档位是**离散选择**（点一下立刻落盘）；不透明度 / 模糊 / 压暗是连续滑杆，走草稿 + 保存。
  */
 @Composable
 private fun AppearancePage(
