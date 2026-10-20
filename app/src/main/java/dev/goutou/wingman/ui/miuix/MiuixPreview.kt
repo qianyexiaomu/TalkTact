@@ -324,12 +324,6 @@ private fun HomeTab(
             Spacer(Modifier.height(2.dp))
             Text("TalkTact · ${appVersion(context)}", fontSize = 13.sp, color = c.onBackgroundVariant)
         }
-        Text(
-            "旧界面",
-            fontSize = 14.sp,
-            color = c.primary,
-            modifier = Modifier.clickable(onClick = onBack).padding(8.dp),
-        )
     }
 
     // ── 运行状态（hero）──

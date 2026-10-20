@@ -1,33 +1,21 @@
 package dev.goutou.wingman.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import dev.goutou.wingman.config.ConfigStore
 import dev.goutou.wingman.ui.miuix.MiuixPreviewScreen
 
 /**
- * App 的根：**默认进新界面（Miuix）**，旧界面退成它里面的一个入口。
+ * App 的根。
  *
- * 为什么不是「直接删掉旧界面」：还有没迁完的功能（试一试、诊断、白名单、备份），
- * 那些只存在于旧界面里。先把新界面做成门面，旧界面留一个明确的入口，等那些页面搬完
- * 再把 [App] 整个删掉 —— 这样任何一步都不会让功能消失。
+ * 现在只有一条路：**新界面（Miuix）**。旧界面（`App()` + 整套玻璃 UI）已经删掉了 ——
+ * 之前它是以「首页右上角 → 旧界面」的形式留的过渡入口，功能全部搬完之后就不需要了。
  *
- * 旧界面里那张「回到新界面」的卡走的就是 [onExitLegacy]；这里再补一个系统返回键，
- * 免得进去之后只能靠点卡片出来。
+ * 保留这一层而不是让 `MainActivity` 直接调 `MiuixPreviewScreen`：
+ * 以后要加启动路由（首次引导、崩溃恢复之类）有地方放，不用动 Activity。
  */
 @Composable
 fun RootScreen(store: ConfigStore) {
-    var legacy by remember { mutableStateOf(false) }
-
-    if (legacy) {
-        BackHandler { legacy = false }
-        App(store, onExitLegacy = { legacy = false })
-    } else {
-        // onBack 的位置就是「去旧界面」：底部导航只有 5 格，未迁移的功能需要一个去处
-        MiuixPreviewScreen(store, onBack = { legacy = true })
+    MiuixPreviewScreen(store) {
+        // onBack：旧界面入口已经没了，留空实现（二级页自己的返回走 page 状态）
     }
 }
