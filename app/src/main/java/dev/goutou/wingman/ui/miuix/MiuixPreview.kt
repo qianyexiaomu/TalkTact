@@ -66,6 +66,8 @@ import dev.goutou.wingman.config.IMAGE_MODE_OCR
 import dev.goutou.wingman.config.IMAGE_MODE_OCR_THEN_VISION
 import dev.goutou.wingman.config.IMAGE_MODE_VISION
 import dev.goutou.wingman.llm.ApiShape
+import dev.goutou.wingman.llm.PROVIDER_PRESETS
+import dev.goutou.wingman.llm.presetOf
 import dev.goutou.wingman.llm.BUILT_IN_SKILLS
 import dev.goutou.wingman.llm.DEFAULT_STYLE_IDS
 import dev.goutou.wingman.llm.FULL_PROMPT
@@ -1058,12 +1060,53 @@ private fun EndpointPage(
     var model by remember(cfg.model) { mutableStateOf(cfg.model) }
     var shape by remember(cfg.apiShape) { mutableStateOf(cfg.apiShape) }
     var customPath by remember(cfg.customPath) { mutableStateOf(cfg.customPath) }
+    var provider by remember(cfg.provider) { mutableStateOf(cfg.provider) }
     var url2 by remember(cfg.baseUrl2) { mutableStateOf(cfg.baseUrl2) }
     var key2 by remember(cfg.apiKey2) { mutableStateOf(cfg.apiKey2) }
     var model2 by remember(cfg.model2) { mutableStateOf(cfg.model2) }
     val dirty = url != cfg.baseUrl || key != cfg.apiKey || model != cfg.model ||
         shape != cfg.apiShape || customPath != cfg.customPath ||
-        url2 != cfg.baseUrl2 || key2 != cfg.apiKey2 || model2 != cfg.model2
+        url2 != cfg.baseUrl2 || key2 != cfg.apiKey2 || model2 != cfg.model2 || provider != cfg.provider
+
+    // 服务商预设：只省掉「去官网查地址」这一步 —— 选完地址/形态/模型照样能手改，
+    // 也不改变任何请求逻辑（本来就是「OpenAI 兼容 + 自定义地址 + 自定义模型」）。
+    val preset = presetOf(provider)
+    SmallTitle(text = "服务商")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "自定义（自己填）",
+            summary = "不套预设，地址和模型都自己写",
+            onClick = { provider = "" },
+            rightActions = {
+                if (provider.isBlank()) {
+                    Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                }
+            },
+        )
+        PROVIDER_PRESETS.forEach { pr ->
+            HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
+            BasicComponent(
+                title = pr.label,
+                summary = pr.baseUrl,
+                onClick = {
+                    // 和旧界面同一套：写草稿，不改别的
+                    provider = pr.id
+                    url = pr.baseUrl
+                    shape = pr.shape.id
+                    if (pr.model.isNotBlank()) model = pr.model
+                },
+                rightActions = {
+                    if (provider == pr.id) {
+                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
+                    }
+                },
+            )
+        }
+    }
+    preset?.note?.takeIf { it.isNotBlank() }?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it, fontSize = 12.sp, color = c.onSurfaceVariantSummary, modifier = Modifier.padding(horizontal = 26.dp))
+    }
 
     SmallTitle(text = "接口")
     Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1128,6 +1171,7 @@ private fun EndpointPage(
     ) {
         save(
             cfg.copy(
+                provider = provider,
                 baseUrl = url.trim(),
                 apiKey = key.trim(),
                 model = model.trim(),
@@ -1202,10 +1246,6 @@ private fun EndpointPage(
         )
     }
 
-    SmallTitle(text = "更多")
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        SuperArrow(title = "服务商预设", summary = "一键填常见服务商（旧界面）", onClick = onOld)
-    }
     Spacer(Modifier.height(24.dp))
 }
 
