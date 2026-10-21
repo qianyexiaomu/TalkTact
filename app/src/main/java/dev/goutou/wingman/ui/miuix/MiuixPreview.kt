@@ -111,9 +111,7 @@ import dev.goutou.wingman.ui.moduleActive
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
-import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -1124,30 +1122,40 @@ private fun AboutPage(c: Colors, store: ConfigStore, onBack: () -> Unit) {
 }
 
 /**
- * 二级页的头：用官方的 `TopAppBar` + `navigationIcon` 插槽，而不是自己拼一行。
+ * 二级页的头：圆形图标返回 + 标题。
  *
- * 两个必须注意的点：
- * 1. `defaultWindowInsetsPadding = false` —— 外层 Column 已经做过 `statusBarsPadding`，
- *    TopAppBar 默认还会自己加一层状态栏内边距，于是标题又离状态栏老远（这个坑之前踩过）。
- * 2. `color` 用页面的 `background`：默认也是它，但显式写出来，避免以后换主题时对不上。
+ * 试过官方 `TopAppBar`，但它的标题有个前置条件：**未滚动时显示 `largeTitle`、
+ * 滚动后才显示 `title`**（alpha 按 `scrolledOffset` 算）。不绑 `MiuixScrollBehavior` 时
+ * `expandedHeightPx` 是 0，除出来是 NaN，两个槽都是透明的 —— 等于把标题丢了
+ * （截图测试就是因为找不到标题文本而失败）。
+ *
+ * 要真正用上那个「大标题随滚动收起」的效果，得把顶栏提到根级、和每个页面的滚动联动，
+ * 那是另一轮的结构改动。在那之前这里保持自己拼：一个圆形按钮 + 标题，行为确定。
  */
 @Composable
 private fun DetailHeader(c: Colors, title: String, onBack: () -> Unit) {
-    TopAppBar(
-        title = title,
-        navigationIcon = {
-            IconButton(onClick = onBack, backgroundColor = c.secondaryContainer) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = c.onSurface,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        },
-        defaultWindowInsetsPadding = false,
-        color = c.background,
-    )
+    Row(
+        Modifier.fillMaxWidth().padding(start = 14.dp, end = 24.dp, top = 14.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(c.secondaryContainer)
+                .clickable(onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = c.onSurface,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
+    }
 }
 
 /**
