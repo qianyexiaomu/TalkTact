@@ -104,6 +104,15 @@ class ScreenRenderTest {
         capture("miuix-home")
     }
 
+    /** Miuix 标签页：设置列表（图标最多的那一页）。 */
+    @Test
+    fun `Miuix 设置页能渲染`() {
+        rule.setContent { MiuixPreviewScreen(store, initialTab = 3) {} }
+        rule.onNodeWithText("常用").assertExists()
+        rule.onNodeWithText("维护").assertExists()
+        capture("miuix-settings")
+    }
+
     /** Miuix 二级页：外观（玻璃三档）。 */
     @Test
     fun `Miuix 外观页能渲染`() {
