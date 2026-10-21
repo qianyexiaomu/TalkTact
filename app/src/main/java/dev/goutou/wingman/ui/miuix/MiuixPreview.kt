@@ -314,35 +314,28 @@ fun MiuixPreviewScreen(
     }
 }
 
-// 图标块的配色。Miuix 的 Colors 没有「语义色」，这里自己定一组，
-// 只用于图标底纹（14% 透明度）+ 图标本身，不参与正文配色，深色模式也不会失去对比。
-private val TintBlue = Color(0xFF3A7BF7)
-private val TintGreen = Color(0xFF2FA566)
-private val TintOrange = Color(0xFFE8842C)
-private val TintPurple = Color(0xFF7C5CFF)
-private val TintPink = Color(0xFFE0577B)
-private val TintTeal = Color(0xFF12A594)
-private val TintRed = Color(0xFFD64545)
-private val TintIndigo = Color(0xFF5B6BF0)
-private val TintCyan = Color(0xFF1495B8)
-private val TintGrey = Color(0xFF8A8A94)
-
 /**
- * 列表行左边那个彩色小方块（30dp 圆角 + 14% 底纹 + 同色图标）。
+ * 列表行左边那个图标块：**统一色调**（中性浅底 + 主色图标）。
  *
- * 这是 HyperOS 界面的主要层次来源：一屏全是白卡、黑字、灰副标题的话，看着很平；
- * 加一排彩色图标块，眼睛才能快速定位到「我要改哪一项」。
+ * 之前按语义给每个图标配了不同颜色（紫/蓝/青/橙/粉…），一屏看下来像调色盘，
+ * 反而抢了文字的位置 —— 图标的作用是「快速定位这一行」，不是分区上色。
+ * 现在全部同色：靠灰度层次分块，靠图标形状区分条目。
  */
 @Composable
-private fun IconChip(icon: ImageVector, tint: Color) {
+private fun IconChip(icon: ImageVector) {
     Box(
         Modifier
             .size(30.dp)
             .clip(RoundedCornerShape(9.dp))
-            .background(tint.copy(alpha = 0.14f)),
+            .background(MiuixTheme.colorScheme.secondaryContainer),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MiuixTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(17.dp),
+        )
     }
 }
 
@@ -440,7 +433,7 @@ private fun HomeTab(
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         BasicComponent(
             title = "注入状态",
-            leftAction = { IconChip(Icons.Filled.Memory, TintBlue) },
+            leftAction = { IconChip(Icons.Filled.Memory) },
             summary = reason ?: "还没在微信里跑起来",
             rightActions = {
                 Text(
@@ -453,7 +446,7 @@ private fun HomeTab(
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         BasicComponent(
             title = "最近一次走的路",
-            leftAction = { IconChip(Icons.Filled.NetworkCheck, TintIndigo) },
+            leftAction = { IconChip(Icons.Filled.NetworkCheck) },
             summary = if (route.first.isBlank()) "还没有回传" else route.first,
             rightActions = {
                 if (route.second > 0) {
@@ -464,7 +457,7 @@ private fun HomeTab(
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         BasicComponent(
             title = "模块版本",
-            leftAction = { IconChip(Icons.Filled.Info, TintGrey) },
+            leftAction = { IconChip(Icons.Filled.Info) },
             rightActions = { Text(appVersion(context), fontSize = 13.sp, color = c.onSurfaceVariantSummary) },
         )
     }
@@ -473,14 +466,14 @@ private fun HomeTab(
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         BasicComponent(
             title = "微信版本",
-            leftAction = { IconChip(Icons.Filled.Forum, TintGreen) },
+            leftAction = { IconChip(Icons.Filled.Forum) },
             summary = "com.tencent.mm",
             rightActions = { Text(wechatVersion, fontSize = 13.sp, color = c.onSurfaceVariantSummary) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         BasicComponent(
             title = "最近心跳",
-            leftAction = { IconChip(Icons.Filled.Favorite, TintPink) },
+            leftAction = { IconChip(Icons.Filled.Favorite) },
             summary = if (heartbeat > 0) agoText(heartbeat, System.currentTimeMillis()) else "微信里还没跑过模块",
             rightActions = {
                 Text(
@@ -493,7 +486,7 @@ private fun HomeTab(
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         BasicComponent(
             title = "自动分析",
-            leftAction = { IconChip(Icons.Filled.Bolt, TintGreen) },
+            leftAction = { IconChip(Icons.Filled.Bolt) },
             summary = if (cfg.enabled) "在聊天页自动出候选" else "已关闭，只手动识别",
             rightActions = { Text(if (cfg.enabled) "开" else "关", fontSize = 13.sp, color = c.onSurfaceVariantSummary) },
         )
@@ -1116,61 +1109,61 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(
             title = "外观与背景", summary = "玻璃强度 / 背景图 / 深色", onClick = { onOpenPage(1) },
-            leftAction = { IconChip(Icons.Filled.Palette, TintPurple) },
+            leftAction = { IconChip(Icons.Filled.Palette) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "本地代理", summary = "API Key 不出本应用", onClick = { onOpenPage(11) },
-            leftAction = { IconChip(Icons.Filled.Security, TintTeal) },
+            leftAction = { IconChip(Icons.Filled.Security) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = { onOpenPage(4) },
-            leftAction = { IconChip(Icons.Filled.Cloud, TintBlue) },
+            leftAction = { IconChip(Icons.Filled.Cloud) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = { onOpenPage(3) },
-            leftAction = { IconChip(Icons.Filled.Face, TintOrange) },
+            leftAction = { IconChip(Icons.Filled.Face) },
         )
     }
     SmallTitle(text = "微信内")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(
             title = "自动分析", summary = "开关 / 频率 / 参考条数", onClick = { onOpenPage(2) },
-            leftAction = { IconChip(Icons.Filled.Bolt, TintGreen) },
+            leftAction = { IconChip(Icons.Filled.Bolt) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "会话白名单", summary = "只在这些聊天里工作", onClick = { onOpenPage(9) },
-            leftAction = { IconChip(Icons.Filled.People, TintPink) },
+            leftAction = { IconChip(Icons.Filled.People) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = { onOpenPage(5) },
-            leftAction = { IconChip(Icons.Filled.Image, TintCyan) },
+            leftAction = { IconChip(Icons.Filled.Image) },
         )
     }
     SmallTitle(text = "维护")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(
             title = "接口自检", summary = "网络 / 能不能连上 / 要多久", onClick = { onOpenPage(14) },
-            leftAction = { IconChip(Icons.Filled.NetworkCheck, TintIndigo) },
+            leftAction = { IconChip(Icons.Filled.NetworkCheck) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "关于", summary = "版本 / 风控说明", onClick = { onOpenPage(7) },
-            leftAction = { IconChip(Icons.Filled.Info, TintGrey) },
+            leftAction = { IconChip(Icons.Filled.Info) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "备份与迁移", summary = "导出 / 导入配置", onClick = { onOpenPage(10) },
-            leftAction = { IconChip(Icons.Filled.Archive, TintGrey) },
+            leftAction = { IconChip(Icons.Filled.Archive) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
             title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = { onOpenPage(8) },
-            leftAction = { IconChip(Icons.Filled.BugReport, TintRed) },
+            leftAction = { IconChip(Icons.Filled.BugReport) },
         )
     }
 
