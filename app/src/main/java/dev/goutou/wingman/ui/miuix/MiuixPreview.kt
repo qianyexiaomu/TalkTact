@@ -2672,7 +2672,6 @@ private fun StylePill(
 }
 
 @Composable
-private fun StepperRow(@Composable
 private fun StepperRow(
     c: Colors,
     title: String,
