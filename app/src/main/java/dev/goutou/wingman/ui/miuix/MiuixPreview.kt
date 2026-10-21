@@ -1118,61 +1118,61 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
     SmallTitle(text = "常用")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(
-            title = "外观与背景", summary = "玻璃强度 / 背景图 / 深色", onClick = { onOpenPage(1) },
+            title = "外观与背景", onClick = { onOpenPage(1) },
             leftAction = { IconChip(Icons.Filled.Palette) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "本地代理", summary = "API Key 不出本应用", onClick = { onOpenPage(11) },
+            title = "本地代理", onClick = { onOpenPage(11) },
             leftAction = { IconChip(Icons.Filled.Security) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "接入与模型", summary = "接口地址 / API Key / 模型", onClick = { onOpenPage(4) },
+            title = "接入与模型", onClick = { onOpenPage(4) },
             leftAction = { IconChip(Icons.Filled.Cloud) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "回复风格", summary = "可多选 + 自定义 + 按联系人", onClick = { onOpenPage(3) },
+            title = "回复风格", onClick = { onOpenPage(3) },
             leftAction = { IconChip(Icons.Filled.Face) },
         )
     }
     SmallTitle(text = "微信内")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(
-            title = "自动分析", summary = "开关 / 频率 / 参考条数", onClick = { onOpenPage(2) },
+            title = "自动分析", onClick = { onOpenPage(2) },
             leftAction = { IconChip(Icons.Filled.Bolt) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "会话白名单", summary = "只在这些聊天里工作", onClick = { onOpenPage(9) },
+            title = "会话白名单", onClick = { onOpenPage(9) },
             leftAction = { IconChip(Icons.Filled.People) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "图片与 OCR", summary = "认字 / 认不出才发图 / 总是发图", onClick = { onOpenPage(5) },
+            title = "图片与 OCR", onClick = { onOpenPage(5) },
             leftAction = { IconChip(Icons.Filled.Image) },
         )
     }
     SmallTitle(text = "维护")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         SuperArrow(
-            title = "接口自检", summary = "网络 / 能不能连上 / 要多久", onClick = { onOpenPage(14) },
+            title = "接口自检", onClick = { onOpenPage(14) },
             leftAction = { IconChip(Icons.Filled.NetworkCheck) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "关于", summary = "版本 / 风控说明", onClick = { onOpenPage(7) },
+            title = "关于", onClick = { onOpenPage(7) },
             leftAction = { IconChip(Icons.Filled.Info) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "备份与迁移", summary = "导出 / 导入配置", onClick = { onOpenPage(10) },
+            title = "备份与迁移", onClick = { onOpenPage(10) },
             leftAction = { IconChip(Icons.Filled.Archive) },
         )
         HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
         SuperArrow(
-            title = "诊断", summary = "决策轨迹 / 抓界面 / 诊断包", onClick = { onOpenPage(8) },
+            title = "诊断", onClick = { onOpenPage(8) },
             leftAction = { IconChip(Icons.Filled.BugReport) },
         )
     }
