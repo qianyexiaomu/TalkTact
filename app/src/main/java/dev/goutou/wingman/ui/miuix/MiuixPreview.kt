@@ -2542,6 +2542,9 @@ private fun PrimaryButton(
         text = text,
         onClick = onClick,
         enabled = enabled,
+        // `submit = true` 才是主色（primary）填充；默认 false 是次要的浅灰。
+        // 这页这些按钮都是「主操作」（保存 / 导出 / 导入 / 开始自检），所以必须开。
+        submit = true,
         modifier = modifier.fillMaxWidth(),
         cornerRadius = 20.dp,
         minHeight = 52.dp,
