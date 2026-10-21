@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -136,9 +138,10 @@ import top.yukonga.miuix.kmp.utils.HorizontalDivider
 @Composable
 fun MiuixPreviewScreen(
     store: ConfigStore,
-    /** 打开时停在哪个标签：0 首页 / 1 军师 / 2 角色 / 3 设置 / 4 关于。给截图测试用。 */
+    /** 打开时停在哪个标签：0 首页 / 1 军师 / 2 角色 / 3 设置。给截图测试用。 */
     initialTab: Int = 0,
-    /** 打开时停在哪一页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片 / 6 角色详情。 */
+    /** 打开时停在哪一页：1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片 / 6 角色详情 / 7 关于 /
+     *  8 诊断 / 9 白名单 / 10 备份 / 11 代理 / 12 按联系人 / 13 会话风格 / 14 自检 / 16 试一试。 */
     initialPage: Int = 0,
     /** 配合 initialPage = 6：直接打开哪一份角色档案。 */
     initialRoleKey: String? = null,
@@ -152,12 +155,17 @@ fun MiuixPreviewScreen(
         val c = MiuixTheme.colorScheme
         var cfg by remember { mutableStateOf(store.load()) }
         var tab by remember { mutableIntStateOf(initialTab) }
-        // 二级页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片
+        // 二级页：0 = 标签层；1 外观 / 2 自动分析 / 3 回复风格 / 4 接入 / 5 图片 / 6 角色 / 7 关于
+        // 8 诊断 / 9 白名单 / 10 备份 / 11 代理 / 12 按联系人 / 13 会话风格 / 14 自检 / 16 试一试
         var page by remember { mutableIntStateOf(initialPage) }
         // 打开的是哪一份角色档案（page == 6 时有效）
         var roleKey by remember { mutableStateOf(initialRoleKey) }
         // 正在编辑「按联系人设风格」的哪一个会话（page == 13）
         var chatKey by remember { mutableStateOf(initialChatKey) }
+        // 滚动位置按「页面」记住：以前每个分支各自 `rememberScrollState()`，
+        // 一离开就被销毁 → 返回时永远从顶部开始。这里按 key 存一份，回来还是原来的位置。
+        val tabScroll = remember { mutableStateMapOf<Int, ScrollState>() }
+        val pageScroll = remember { mutableStateMapOf<Int, ScrollState>() }
         // 系统返回：**先退二级页 → 再回首页标签 → 才交还给系统（退出）**。
         // 以前没挂 BackHandler，系统直接按默认行为退出 —— 在一堆二级页里按返回，App 就没了。
         BackHandler(enabled = page != 0 || tab != 0) {
@@ -221,7 +229,7 @@ fun MiuixPreviewScreen(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(tabScroll.getOrPut(tab) { ScrollState(0) })
                         // 新界面是**根**了（RootScreen 直接渲染它），状态栏内边距得自己加 ——
                         // 以前挂在旧 App() 的 Column 里时这里不能加（会双份），位置一换就得跟着换。
                         .statusBarsPadding()
@@ -230,7 +238,8 @@ fun MiuixPreviewScreen(
                 ) {
                     when (tab) {
                         0 -> HomeTab(c, store, cfg, onOpenPage = { page = it }, onBack = onBack)
-                        1 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
+                        1 -> MentorTab(c, store, cfg, save)
+                        2 -> RolesTab(c, store, onOpen = { roleKey = it; page = 6 })
                         else -> SettingsTab(c, onOpenPage = { page = it }, onOld = onBack)
                     }
                 }
@@ -238,6 +247,7 @@ fun MiuixPreviewScreen(
                 MiuixGlassNavBar(
                     items = listOf(
                         "首页" to Icons.Filled.Home,
+                        "军师" to Icons.Filled.Edit,
                         "角色" to Icons.Filled.Person,
                         "设置" to Icons.Filled.Settings,
                     ),
@@ -252,7 +262,7 @@ fun MiuixPreviewScreen(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(pageScroll.getOrPut(page) { ScrollState(0) })
                         .statusBarsPadding()
                         .padding(bottom = 28.dp),
                 ) {
@@ -277,7 +287,6 @@ fun MiuixPreviewScreen(
                             onOpen = { chatKey = it; page = 13 },
                         ) { page = 3 }
                         16 -> TrialPage(c, store) { page = 0 }
-                        15 -> MentorPage(c, store, cfg, save) { page = 0 }
                         else -> ChatStyleEditPage(
                             c, cfg, chatKey, setChatStyles,
                             onRemove = { removeChatStyle(it); page = 12 },
@@ -459,8 +468,8 @@ private fun HomeTab(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        QuickTile(c, "军师", "提示词 / skill", Modifier.weight(1f)) { onOpenPage(15) }
         QuickTile(c, "试一试", "粘聊天看输出", Modifier.weight(1f)) { onOpenPage(16) }
+        QuickTile(c, "诊断", "自检 / 抓界面", Modifier.weight(1f)) { onOpenPage(8) }
         QuickTile(c, "关于", "版本 / 说明", Modifier.weight(1f)) { onOpenPage(7) }
     }
     Spacer(Modifier.height(24.dp))
@@ -512,12 +521,11 @@ private fun QuickTile(c: Colors, title: String, sub: String, modifier: Modifier 
  * 远程导入（粘 GitHub 链接）还没搬：它要挂协程和网络状态，单独一轮做。
  */
 @Composable
-private fun MentorPage(
+private fun MentorTab(
     c: Colors,
     store: ConfigStore,
     cfg: ConfigData,
     save: (ConfigData) -> Unit,
-    onBack: () -> Unit,
 ) {
     var text by remember(cfg.prompt) { mutableStateOf(cfg.prompt) }
     var confirmReset by remember { mutableStateOf(false) }
@@ -528,13 +536,16 @@ private fun MentorPage(
     val scope = rememberCoroutineScope()
     val dirty = text != cfg.prompt
 
-    DetailHeader(c, "军师", onBack)
-    Text(
-        "当前 skill：${skillName(cfg.skillId)}",
-        fontSize = 12.sp,
-        color = c.onBackgroundVariant,
-        modifier = Modifier.padding(horizontal = 26.dp),
-    )
+    Row(
+        Modifier.fillMaxWidth().padding(start = 26.dp, end = 18.dp, top = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("军师", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
+            Spacer(Modifier.height(2.dp))
+            Text("当前 skill：${skillName(cfg.skillId)}", fontSize = 13.sp, color = c.onBackgroundVariant)
+        }
+    }
 
     SmallTitle(text = "提示词")
     Column(Modifier.padding(horizontal = 12.dp)) {

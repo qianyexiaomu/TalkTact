@@ -152,7 +152,7 @@ class ScreenRenderTest {
     /** Miuix 标签页：角色列表。 */
     @Test
     fun `Miuix 角色页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store, initialTab = 1) {} }
+        rule.setContent { MiuixPreviewScreen(store, initialTab = 2) {} }
         rule.onNodeWithText("档案").assertExists()
         capture("miuix-roles")
     }
@@ -160,7 +160,7 @@ class ScreenRenderTest {
     /** Miuix 标签页：军师（提示词 + Skill）。 */
     @Test
     fun `Miuix 军师页能渲染`() {
-        rule.setContent { MiuixPreviewScreen(store, initialPage = 15) {} }
+        rule.setContent { MiuixPreviewScreen(store, initialTab = 1) {} }
         rule.onNodeWithText("提示词").assertExists()
         rule.onNodeWithText("Skill").assertExists()
         capture("miuix-mentor")
