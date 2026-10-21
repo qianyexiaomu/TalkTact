@@ -895,13 +895,6 @@ private fun RolesTab(c: Colors, store: ConfigStore, onOpen: (String) -> Unit) {
         )
     }
     Spacer(Modifier.height(6.dp))
-    Text(
-        "打开聊天页时，模块会把消息按联系人归到这里。写上「TA 是你什么人」「平时什么关系」，" +
-            "会连同攒下的记录一起拼进提示词。",
-        fontSize = 12.sp,
-        color = c.onBackgroundVariant,
-        modifier = Modifier.padding(horizontal = 26.dp),
-    )
 
     SmallTitle(text = "档案")
     if (roles.isEmpty()) {
@@ -1167,13 +1160,6 @@ private fun SettingsTab(c: Colors, onOpenPage: (Int) -> Unit, onOld: () -> Unit)
         )
     }
 
-    Spacer(Modifier.height(18.dp))
-    Text(
-        "设置页所有条目都已经是新界面了。",
-        fontSize = 12.sp,
-        color = c.onBackgroundVariant,
-        modifier = Modifier.padding(horizontal = 28.dp),
-    )
 }
 
 @Composable
@@ -1707,7 +1693,7 @@ private fun EndpointPage(
 
     SmallTitle(text = "第二套接口（分级模式的风险一路）")
     Text(
-        "留空 = 复用上面那一套。分级模式下风险判断会走这里 —— 两路并行才快。",
+        "分级模式下风险判断走这里；留空 = 复用上面那套。",
         fontSize = 12.sp,
         color = c.onSurfaceVariantSummary,
         modifier = Modifier.padding(horizontal = 26.dp).padding(bottom = 8.dp),
@@ -1865,7 +1851,7 @@ private fun DiagnosticPage(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "排查「不出候选 / 报错」用这里：先看三份快照，再抓一次界面或导出诊断包。",
+            "出问题先看三份快照；还不行就抓界面、导出诊断包。",
             fontSize = 12.sp,
             color = c.onBackgroundVariant,
             modifier = Modifier.weight(1f),
@@ -1967,7 +1953,7 @@ private fun WhitelistPage(
 
     DetailHeader(c, "会话白名单", onBack)
     Text(
-        "开着「自动分析」时，只在名单里的聊天里工作。名单空着 = 哪儿都不工作。",
+        "名单空着 = 哪儿都不工作。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 26.dp),
@@ -2124,12 +2110,6 @@ private fun BackupPage(
     }
 
     DetailHeader(c, "备份与迁移", onBack)
-    Text(
-        "换包名、换手机的时候用：导出成一个 json，装好新的再导入回来。导入是合并 —— 角色只覆盖同名的。",
-        fontSize = 12.sp,
-        color = c.onBackgroundVariant,
-        modifier = Modifier.padding(horizontal = 26.dp),
-    )
 
     SmallTitle(text = "导出")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -2146,12 +2126,6 @@ private fun BackupPage(
     }
 
     SmallTitle(text = "导入")
-    Text(
-        "选一个之前导出的 json。现在的配置里没被备份覆盖到的项会原样保留。",
-        fontSize = 12.sp,
-        color = c.onSurfaceVariantSummary,
-        modifier = Modifier.padding(horizontal = 26.dp).padding(bottom = 8.dp),
-    )
     PrimaryButton(text = "选择文件导入", enabled = true, modifier = Modifier.padding(horizontal = 12.dp)) {
         importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
     }
@@ -2188,8 +2162,7 @@ private fun ProxyPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack: ()
 
     DetailHeader(c, "本地代理", onBack)
     Text(
-        "开启后：聊天内容先送到本机 127.0.0.1，由这个 App 带上 Key 去调你的接口。" +
-            "Key 不出 App 进程，微信那边看不到。",
+        "聊天内容走本机，由 App 带 Key 转发；Key 不出 App 进程。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 26.dp),
@@ -2259,7 +2232,7 @@ private fun ChatStylesPage(
 
     DetailHeader(c, "按联系人设风格", onBack)
     Text(
-        "给某几个人单独一套风格；没列在这里的会话，都用上面「回复风格」里勾的那套。",
+        "没列在这里的会话，都用「回复风格」里那套。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 26.dp),
@@ -2357,12 +2330,6 @@ private fun ChatStyleEditPage(
         return
     }
 
-    Text(
-        "一个都不勾 = 跟随全局。勾了就只按勾的这几条写（勾几种就写几条）。",
-        fontSize = 12.sp,
-        color = c.onBackgroundVariant,
-        modifier = Modifier.padding(horizontal = 26.dp),
-    )
 
     val known = REPLY_STYLES.map { it.id }.toSet() + cfg.replyCustomStyles.map { it.id }
     val all = REPLY_STYLES + cfg.replyCustomStyles
@@ -2486,7 +2453,7 @@ private fun SelfCheckPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack
 
     DetailHeader(c, "接口自检", onBack)
     Text(
-        "只看「连不连得上、要多久」：发一次最小请求，不拼 skill、也不看回复内容。",
+        "只量连接和首包，不拼 skill、不看回复内容。",
         fontSize = 12.sp,
         color = c.onBackgroundVariant,
         modifier = Modifier.padding(horizontal = 26.dp),
@@ -2520,11 +2487,6 @@ private fun SelfCheckPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack
     SmallTitle(text = "连通性")
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text(
-                "发一句 ping，只让它回 1 个 token —— 量的是连接和模型首包，不是完整生成。",
-                fontSize = 12.sp,
-                color = c.onSurfaceVariantSummary,
-            )
             Spacer(Modifier.height(12.dp))
             PrimaryButton(
                 text = if (probing) "测试中…" else "开始自检",
