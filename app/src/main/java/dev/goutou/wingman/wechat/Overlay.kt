@@ -645,8 +645,20 @@ internal class Panel(private val a: Activity) {
                 pendingNameTicks = 1
             }
             if (pendingNameTicks < 2 && chatName.isNotBlank()) {
-                Trace.note("标题", "读到新标题「$observedName」但只出现一轮 → 当作抖动，这一轮仍按「$chatName」处理")
-                observedName = chatName
+                // 标题刚变、还没确认 —— **这一屏到底是谁的消息不确定**。
+                //
+                // 微信切会话时，标题会先变、消息列表还在显示上一个人的消息（或者反过来）。
+                // 这个中间态如果按「旧名字 + 新消息」继续分析，就会把 B 的消息记到 A 头上
+                // —— 用户报的「多个人之间切换后消息错乱」就是这个。
+                //
+                // 参考 yanwai（hook/ConversationIdentity）的原则：**身份不确定就不分析**，
+                // 绝不拿上一次的身份去猜。这里等价于这一轮直接跳过，下一轮标题确认了再处理。
+                // 不会让卡片自己收起来 —— 我们 return 得太早，根本没动 body。
+                Trace.note(
+                    "标题",
+                    "读到新标题「$observedName」但只出现一轮 → 身份不确定（可能是切会话的中间态）→ 这一轮不分析",
+                )
+                return
             }
         } else {
             pendingName = ""
