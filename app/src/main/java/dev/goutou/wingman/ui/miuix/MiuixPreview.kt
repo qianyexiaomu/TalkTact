@@ -897,6 +897,23 @@ private fun RolesTab(c: Colors, store: ConfigStore, onOpen: (String) -> Unit) {
     Spacer(Modifier.height(6.dp))
 
     SmallTitle(text = "档案")
+    // 「本人」是 `Roles.withSelf` 永远会加的那条，所以 roles 永远不会真的为空 ——
+    // 判断「有没有别人的档案」要按 key 排除它，否则新手看到的就是一页空白 + 一条本人。
+    val hasOthers = roles.any { it.key != SELF_ROLE_KEY }
+    if (!hasOthers) {
+        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(16.dp)) {
+                Text("还没有别人", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "去微信里打开一个聊天页停两三秒，回来点右上角刷新。",
+                    fontSize = 12.sp,
+                    color = c.onSurfaceVariantSummary,
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
     if (roles.isEmpty()) {
         Card(modifier = Modifier.padding(horizontal = 12.dp)) {
             Column(Modifier.padding(18.dp)) {
