@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -1445,42 +1447,39 @@ private fun ReplyStylePage(
     // 后者掺了「为凑够条数自动补齐」的风格，拿它当选中态会出现「点了没反应」。
     val chosen = cfg.replyStyleIds.ifEmpty { DEFAULT_STYLE_IDS }.toSet()
 
-    SmallTitle(text = "勾几种就写几条")
-    Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-        REPLY_STYLES.forEachIndexed { i, st ->
-            BasicComponent(
-                title = st.label,
-                onClick = { onToggle(st.id) },
-                rightActions = {
-                    if (st.id in chosen) {
-                        Text("✓", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = c.primary)
-                    }
-                },
-            )
-            if (i != REPLY_STYLES.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
-        }
+    val customs = cfg.replyCustomStyles
+    val all = REPLY_STYLES + customs
+
+    SmallTitle(text = "勾几种就写几条（现在是 ${chosen.size} 种）")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        StyleChips(c, all, chosen, onToggle)
     }
 
-    val customs = cfg.replyCustomStyles
     var newName by remember { mutableStateOf("") }
     var newHint by remember { mutableStateOf("") }
     var addNote by remember { mutableStateOf<String?>(null) }
 
-    SmallTitle(text = "自定义（${customs.size}/$MAX_CUSTOM_STYLES）")
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-        if (customs.isEmpty()) {
-            Column(Modifier.padding(16.dp)) {
-                Text("还没有自定义风格", fontSize = 13.sp, color = c.onSurface)
-                Spacer(Modifier.height(3.dp))
-                Text("比如「毒舌」「哄小孩」，写完会在上面多一个可勾选的药丸", fontSize = 12.sp, color = c.onSurfaceVariantSummary)
-            }
-        } else {
+    // 自定义的「管理」和「勾选」分开：勾选在上面那排药丸里（点一下切换），
+    // 这里只负责删除 —— 而且**只有「删除」这两个字能点**，点整行不会删。
+    // （之前这一行是「点整行 = 删除」，看起来像可选列表，实际一碰就没了。）
+    if (customs.isNotEmpty()) {
+        SmallTitle(text = "自定义（${customs.size}/$MAX_CUSTOM_STYLES）")
+        Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             customs.forEachIndexed { i, st ->
                 BasicComponent(
                     title = st.label,
                     summary = st.hint.ifBlank { null },
-                    rightActions = { Text("删除", fontSize = 13.sp, color = Color(0xFFD64545)) },
-                    onClick = { onRemoveCustom(st) },
+                    onClick = null,
+                    rightActions = {
+                        Text(
+                            "删除",
+                            fontSize = 13.sp,
+                            color = Color(0xFFD64545),
+                            modifier = Modifier
+                                .clickable { onRemoveCustom(st) }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    },
                 )
                 if (i != customs.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = c.dividerLine)
             }
@@ -2607,6 +2606,45 @@ private fun PrimaryButton(
         cornerRadius = 20.dp,
         minHeight = 52.dp,
     )
+}
+
+/**
+ * 风格药丸：**流式排布**，点一下切换。
+ *
+ * 为什么不用列表行：风格名只有两个字（「稳妥」「幽默」「推进」），一行铺满整屏太浪费 ——
+ * 一屏能排下十来个药丸，一眼就看清哪些开着。内置和自定义混在一起，都能点。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StyleChips(
+    c: Colors,
+    all: List<ReplyStyle>,
+    chosen: Set<String>,
+    onToggle: (String) -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        all.forEach { st ->
+            val on = st.id in chosen
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (on) c.primary else c.secondaryContainer)
+                    .clickable { onToggle(st.id) }
+                    .padding(horizontal = 16.dp, vertical = 9.dp),
+            ) {
+                Text(
+                    st.label,
+                    fontSize = 14.sp,
+                    fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
+                    color = if (on) c.onPrimary else c.onSurface,
+                )
+            }
+        }
+    }
 }
 
 @Composable

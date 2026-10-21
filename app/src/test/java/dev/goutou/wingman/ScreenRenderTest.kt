@@ -136,7 +136,7 @@ class ScreenRenderTest {
     @Test
     fun `Miuix 回复风格页能渲染`() {
         rule.setContent { MiuixPreviewScreen(store, initialPage = 3) {} }
-        rule.onNodeWithText("勾几种就写几条").assertExists()
+        rule.onNodeWithText("勾几种就写几条", substring = true).assertExists()
         capture("miuix-style")
     }
 
