@@ -12,8 +12,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -2613,12 +2611,12 @@ private fun PrimaryButton(
 }
 
 /**
- * 风格药丸：**流式排布**，点一下切换。
+ * 风格药丸：**等宽三列网格**，点一下切换。
  *
- * 为什么不用列表行：风格名只有两个字（「稳妥」「幽默」「推进」），一行铺满整屏太浪费 ——
- * 一屏能排下十来个药丸，一眼就看清哪些开着。内置和自定义混在一起，都能点。
+ * 为什么不按内容自适应宽度：风格名短的两个字、长的（自定义最多 16 字）能顶满一行，
+ * 同一排里大小差很多，看着乱。改成每行固定三格、`weight(1f)` 平分宽度 + 超出省略 ——
+ * 不管以后加多长的名字，格子大小都一致，加多少条都不会破坏排版。
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StyleChips(
     c: Colors,
@@ -2626,32 +2624,55 @@ private fun StyleChips(
     chosen: Set<String>,
     onToggle: (String) -> Unit,
 ) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        all.forEach { st ->
-            val on = st.id in chosen
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (on) c.primary else c.secondaryContainer)
-                    .clickable { onToggle(st.id) }
-                    .padding(horizontal = 16.dp, vertical = 9.dp),
+        all.chunked(3).forEach { row ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    st.label,
-                    fontSize = 14.sp,
-                    fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
-                    color = if (on) c.onPrimary else c.onSurface,
-                )
+                row.forEach { st ->
+                    StylePill(c, st, st.id in chosen, Modifier.weight(1f)) { onToggle(st.id) }
+                }
+                // 最后一行不满三格时补空位，保证每个格子宽度和上面几行对齐
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
 
 @Composable
+private fun StylePill(
+    c: Colors,
+    st: ReplyStyle,
+    on: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(50))
+            .background(if (on) c.primary else c.secondaryContainer)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            st.label,
+            fontSize = 14.sp,
+            fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
+            color = if (on) c.onPrimary else c.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun StepperRow(@Composable
 private fun StepperRow(
     c: Colors,
     title: String,
