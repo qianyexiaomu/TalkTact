@@ -91,7 +91,9 @@ fun MiuixGlassNavBar(
                 spotColor = Color.Black.copy(alpha = 0.14f),
             )
             .clip(NavShape)
-            .background(c.surface.copy(alpha = 0.94f))
+            // 不透明：半透明时下面的卡片文字会透上来（截图里能看到灰字穿过导航条），
+            // 悬浮感靠圆角 + 投影 + 描边给，不需要靠透光。
+            .background(c.surface)
             .border(0.5.dp, c.dividerLine, NavShape),
     ) {
         Box(Modifier.fillMaxWidth().height(NavHeight)) {
