@@ -1503,16 +1503,20 @@ private fun ReplyStylePage(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            PrimaryButton(text = "添加", enabled = newName.isNotBlank()) {
-                addNote = if (onAddCustom(newName.trim(), newHint.trim())) {
-                    "已添加并选中"
-                } else {
-                    "加不上：名字为空、重复、或已满 $MAX_CUSTOM_STYLES 个"
-                }
-                if (addNote == "已添加并选中") {
-                    newName = ""
-                    newHint = ""
-                }
+            // 名字没填时不显示按钮：官方禁用态是「浅蓝底 + 近白字」，
+            // 在浅色页面上几乎看不见，看着像渲染坏了。
+            if (newName.isNotBlank()) {
+              PrimaryButton(text = "添加", enabled = newName.isNotBlank()) {
+                  addNote = if (onAddCustom(newName.trim(), newHint.trim())) {
+                      "已添加并选中"
+                  } else {
+                      "加不上：名字为空、重复、或已满 $MAX_CUSTOM_STYLES 个"
+                  }
+                  if (addNote == "已添加并选中") {
+                      newName = ""
+                      newHint = ""
+                  }
+              }
             }
             addNote?.let {
                 Text(it, fontSize = 12.sp, color = c.onSurfaceVariantSummary)
