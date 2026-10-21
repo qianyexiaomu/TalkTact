@@ -109,8 +109,11 @@ import dev.goutou.wingman.ui.formatTime
 import dev.goutou.wingman.ui.skillName
 import dev.goutou.wingman.ui.moduleActive
 import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -1120,31 +1123,31 @@ private fun AboutPage(c: Colors, store: ConfigStore, onBack: () -> Unit) {
     }
 }
 
+/**
+ * 二级页的头：用官方的 `TopAppBar` + `navigationIcon` 插槽，而不是自己拼一行。
+ *
+ * 两个必须注意的点：
+ * 1. `defaultWindowInsetsPadding = false` —— 外层 Column 已经做过 `statusBarsPadding`，
+ *    TopAppBar 默认还会自己加一层状态栏内边距，于是标题又离状态栏老远（这个坑之前踩过）。
+ * 2. `color` 用页面的 `background`：默认也是它，但显式写出来，避免以后换主题时对不上。
+ */
 @Composable
 private fun DetailHeader(c: Colors, title: String, onBack: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 14.dp, end = 24.dp, top = 14.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // 圆形图标按钮：比一行「‹ 返回」文字更像系统级返回，也不占标题的位置
-        Box(
-            Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .background(c.secondaryContainer)
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
-                tint = c.onSurface,
-                modifier = Modifier.size(19.dp),
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = c.onBackground)
-    }
+    TopAppBar(
+        title = title,
+        navigationIcon = {
+            IconButton(onClick = onBack, backgroundColor = c.secondaryContainer) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = c.onSurface,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        defaultWindowInsetsPadding = false,
+        color = c.background,
+    )
 }
 
 /**
@@ -2514,7 +2517,12 @@ private fun SelfCheckPage(c: Colors, store: ConfigStore, cfg: ConfigData, onBack
     Spacer(Modifier.height(24.dp))
 }
 
-/** 主按钮：实心圆角 + 投影，按下时缩一点、深一点 —— 手指压下去要有回应。 */
+/**
+ * 主按钮：直接用官方 `Button`（`cornerRadius` 调大一点、`minHeight` 给到 52dp 好点）。
+ *
+ * 之前是自己用 `Box + background + 缩放` 拼的 —— 那样按下反馈是假的，
+ * 官方组件自带按压态、禁用态和触控反馈，也没有「缩放 + 涟漪」二选一的纠结。
+ */
 @Composable
 private fun PrimaryButton(
     text: String,
@@ -2522,49 +2530,14 @@ private fun PrimaryButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    val c = MiuixTheme.colorScheme
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed && enabled) 0.97f else 1f, tween(90))
-    val shape = RoundedCornerShape(20.dp)
-
-    Box(
-        modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .shadow(
-                elevation = if (enabled) 10.dp else 0.dp,
-                shape = shape,
-                clip = false,
-                ambientColor = c.primary.copy(alpha = 0.35f),
-                spotColor = c.primary.copy(alpha = 0.45f),
-            )
-            .clip(shape)
-            .background(if (enabled) c.primary else c.secondary)
-            .then(
-                if (enabled) {
-                    Modifier.clickable(
-                        interactionSource = interaction,
-                        indication = null,
-                        onClick = onClick,
-                    )
-                } else {
-                    Modifier
-                },
-            )
-            .padding(vertical = 15.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (enabled) c.onPrimary else c.onSurfaceVariantSummary,
-        )
-    }
+    Button(
+        text = text,
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth(),
+        cornerRadius = 20.dp,
+        minHeight = 52.dp,
+    )
 }
 
 @Composable
