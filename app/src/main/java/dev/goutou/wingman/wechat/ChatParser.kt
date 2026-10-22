@@ -81,9 +81,10 @@ class ChatParser(
             val text = clean(raw)
             if (text.isEmpty() || text.length > maxTextLen) continue
             if (Chrome.isChrome(text)) continue
-            // 通用占位（`[视频]` / `[文件]` / `[位置]` …）没有可读内容：
-            // 标成 attachment，否则下游会把它当成「对方真的说了这三个字」。
-            add(out, ChatMsg(fromMe, text, who, attachment = isGenericAttachment(text)))
+            // ⚠️ 这里**不**按 `isGenericAttachment` 标 attachment：微信自己给的 `[图片]` / `[视频]`
+            // 是「这一行有内容（只是没有字）」的描述，保留成普通文本模型才看得懂；
+            // 只有模块自己的通用占位（[图片/表情/语音]）才算「内容未知」。
+            add(out, ChatMsg(fromMe, text, who))
         }
         return out
     }
