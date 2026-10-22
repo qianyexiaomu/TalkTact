@@ -63,10 +63,15 @@ internal class ChatHistory(private val max: Int = 60) {
     /**
      * 把这一轮读到的 [fresh] 合并进账本，返回合并后的历史。
      *
-     * 对齐方式：在账本里找 [fresh] 第一条**最后出现**的位置，
-     * 保留它之前的内容，后面全部用这一轮覆盖（这一轮是更新的窗口）。
+     * 不能只用一个锚点 —— 窗口有**三种**移动方式，只看 [fresh] 的第一条会错：
      *
-     * 找不到锚点（这一屏和账本没有重叠，多半是翻到了很久以前）时**不动账本** ——
+     * | 场景 | 看谁 | 结果 |
+     * | --- | --- | --- |
+     * | 来了新消息（窗口向右延伸） | `first()` 在账本里 | 账本前缀 + 这一轮 |
+     * | 往上翻（窗口向左延伸） | `first()` 不在、`last()` 在 | 这一轮 + 账本后缀 |
+     * | 两者都在（窗口在账本中间） | 两个都用 | 前缀 + 这一轮 + 后缀 |
+     *
+     * 两个锚点都找不到（这一屏和账本完全没重叠，多半是翻到了很久以前）时**不动账本** ——
      * 追加到末尾会让 `last()` 变成一条历史消息，那分析的就是错的对象了。
      */
     fun merge(name: String, fresh: List<ChatMsg>): List<ChatMsg> {
@@ -77,15 +82,34 @@ internal class ChatHistory(private val max: Int = 60) {
         if (fresh.isEmpty()) return items.toList()
         if (items.isEmpty()) {
             items.addAll(fresh)
-        } else {
-            val anchor = items.indexOfLast { it == fresh.first() }
-            if (anchor >= 0) {
-                while (items.size > anchor) items.removeAt(items.lastIndex)
-                items.addAll(fresh)
-            }
+            trim()
+            return items.toList()
         }
-        while (items.size > max) items.removeAt(0)
+
+        val head = items.indexOfLast { it == fresh.first() }
+        val tail = items.indexOfLast { it == fresh.last() }
+        val merged = ArrayList<ChatMsg>(items.size + fresh.size)
+        when {
+            head >= 0 -> {
+                for (i in 0 until head) merged.add(items[i])
+                merged.addAll(fresh)
+                if (tail > head) for (i in (tail + 1) until items.size) merged.add(items[i])
+            }
+            tail >= 0 -> {
+                // 往上翻：这一轮里没有账本的第一条，说明它是账本**前面**的一段
+                merged.addAll(fresh)
+                for (i in (tail + 1) until items.size) merged.add(items[i])
+            }
+            else -> return items.toList()
+        }
+        items.clear()
+        items.addAll(merged)
+        trim()
         return items.toList()
+    }
+
+    private fun trim() {
+        while (items.size > max) items.removeAt(0)
     }
 }
 

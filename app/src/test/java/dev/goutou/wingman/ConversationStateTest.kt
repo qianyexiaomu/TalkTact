@@ -74,6 +74,11 @@ class ConversationStateTest {
             listOf("A", "B", "C", "D", "E"),
             h.merge("张三", listOf(ChatMsg(false, "A"), b, c)).map { it.text },
         )
+        // 窗口落在账本中间（翻上去又翻回来）：前后都要保住，不能把 E 丢了
+        assertEquals(
+            listOf("A", "B", "C", "D", "E"),
+            h.merge("张三", listOf(b, c)).map { it.text },
+        )
     }
 
     @Test fun `history resets when the conversation changes`() {
