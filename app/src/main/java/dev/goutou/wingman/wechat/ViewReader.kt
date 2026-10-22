@@ -530,7 +530,26 @@ internal class ViewReader(private val a: Activity) {
         }
         val image = scan?.hit?.let { hit -> RowImage(hit.w, hit.h) { side -> jpegOf(hit, side) } }
 
-        return RowSnapshot(bubble, texts, avatars, image, scan?.probe)
+        // 语音消息：气泡里只有时长（`8''`），真正的内容在**气泡下面**那行转写文字里
+        //（用户长按「转文字」之后微信才渲染它）。那段文字不在气泡背景里，
+        // `bubbleOf` 给的是 null，所以以前整条被丢掉 —— 模型只看到「[语音]」。
+        //
+        // 判定「这一行是语音」只看时长文本，**不认控件类名**（每个微信版本都变）；
+        // 挑转写文字则按「最长的一条非界面文字」——时长、时间戳、昵称都会被排除。
+        val transcript = if (isVoiceDuration(bubbleText)) {
+            texts.asSequence()
+                .filter { it.kind == Kind.OTHER }
+                .map { it.text.trim() }
+                .filter {
+                    it.isNotEmpty() && it != bubbleText && !isVoiceDuration(it) &&
+                        !Chrome.isTime(it) && !Chrome.isTag(it) && !Chrome.isChrome(it)
+                }
+                .maxByOrNull { it.length }
+        } else {
+            null
+        }
+
+        return RowSnapshot(bubble, texts, avatars, image, scan?.probe, transcript)
     }
 
     /** 一次「找图」的结果：命中的控件 + 一句话现场（诊断用）。 */

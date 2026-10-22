@@ -10,6 +10,7 @@ import dev.goutou.wingman.wechat.RowSnapshot
 import dev.goutou.wingman.wechat.Side
 import dev.goutou.wingman.wechat.TextNode
 import dev.goutou.wingman.wechat.isImageLikeAttachment
+import dev.goutou.wingman.wechat.isVoiceDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -27,6 +28,7 @@ class ChatParserTest {
         avatarOnRight: Boolean? = null,
         nickname: String? = null,
         image: RowImage? = null,
+        voice: String? = null,
     ): RowSnapshot {
         val avatars = when (avatarOnRight) {
             null -> emptyList()
@@ -36,7 +38,7 @@ class ChatParserTest {
         val texts = ArrayList<TextNode>()
         nickname?.let { texts.add(TextNode(it, top - 40, Kind.NICKNAME, 28f)) }
         text?.let { texts.add(TextNode(it, top, Kind.BUBBLE, 36f)) }
-        return RowSnapshot(Bubble(text, color, center, top), texts, avatars, image)
+        return RowSnapshot(Bubble(text, color, center, top), texts, avatars, image, voiceText = voice)
     }
 
     /** 造一张「行里的图」：抓字节返回空数组就行 —— 单测里不会真的编码，更不会联网。 */
@@ -230,5 +232,53 @@ class ChatParserTest {
     fun `普通文字与空串都不去找图`() {
         assertFalse(isImageLikeAttachment("在吗"))
         assertFalse(isImageLikeAttachment(""))
+    }
+
+    /**
+     * 语音消息：气泡里只有时长（`8''`），内容在气泡下面的转写文字里。
+     *
+     * 转写文字必须带上 `[语音] ` 前缀 —— 模型要知道这是机器转的、可能有错音错字，
+     * 而不是对方亲手打的原话。
+     */
+    @Test
+    fun `语音有转写就当成消息`() {
+        val msgs = parser.parse(
+            listOf(
+                row("在吗", 300, Side.OTHER, 0.35, false),
+                row("8''", 400, Side.ME, 0.65, true, voice = "我晚上八点才下班"),
+            ),
+        )
+        assertEquals(2, msgs.size)
+        assertEquals("[语音] 我晚上八点才下班", msgs[1].text)
+        assertFalse(msgs[1].attachment)
+        assertTrue(msgs[1].fromMe)
+    }
+
+    @Test
+    fun `语音没转写就是内容未知`() {
+        val msgs = parser.parse(listOf(row("12\"", 300, Side.OTHER, 0.35, false)))
+        assertEquals("[语音]", msgs[0].text)
+        assertTrue(msgs[0].attachment)
+    }
+
+    @Test
+    fun `时长格式认得准`() {
+        assertTrue(isVoiceDuration("8''"))
+        assertTrue(isVoiceDuration("12\""))
+        assertTrue(isVoiceDuration("8秒"))
+        assertTrue(isVoiceDuration(" 8s "))
+        // 正常聊天内容不能被当成语音
+        assertFalse(isVoiceDuration("在吗"))
+        assertFalse(isVoiceDuration("[语音]"))
+        assertFalse(isVoiceDuration("8"))
+        assertFalse(isVoiceDuration("我晚上八点才下班"))
+    }
+
+    /** 转写文字是空的（微信转失败时会显示空行）→ 仍然按内容未知处理。 */
+    @Test
+    fun `空转写不算内容`() {
+        val msgs = parser.parse(listOf(row("8''", 300, Side.OTHER, 0.35, false, voice = "   ")))
+        assertEquals("[语音]", msgs[0].text)
+        assertTrue(msgs[0].attachment)
     }
 }

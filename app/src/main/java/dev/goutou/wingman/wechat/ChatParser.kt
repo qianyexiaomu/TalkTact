@@ -38,6 +38,20 @@ class ChatParser(
             val who = if (fromMe) "" else nickname(row, bubble)
 
             val raw = bubble.text
+            // 语音：`raw` 只是时长（`8''`），真正的内容在**气泡下面**那行转写文字里
+            //（用户长按「转文字」之后微信才渲染）。有转写就当成消息发出去，
+            // 并加上 `[语音] ` 前缀 —— 模型需要知道这是机器转写、可能有错音错字，
+            // 而不是对方亲手打的原话。
+            if (isVoiceDuration(raw.orEmpty())) {
+                val transcript = row.voiceText?.let { clean(it) }
+                if (!transcript.isNullOrBlank() && transcript.length <= maxTextLen) {
+                    add(out, ChatMsg(fromMe, VOICE_PREFIX + transcript, who))
+                } else {
+                    // 没转写就是「内容未知」，标成附件，别让下游当成一句话去分析
+                    add(out, ChatMsg(fromMe, "[语音]", who, attachment = true))
+                }
+                continue
+            }
             // 附件行 = 「一个字都没有」或者微信给的通用占位（[图片] 这种，无障碍描述里也会有）。
             // 问一句「这张图认出来什么字」——认字本身在 App 进程里做，这里可能什么都拿不到。
             if (raw == null || isGenericAttachment(raw) || isStickerAttachment(raw)) {
@@ -67,7 +81,9 @@ class ChatParser(
             val text = clean(raw)
             if (text.isEmpty() || text.length > maxTextLen) continue
             if (Chrome.isChrome(text)) continue
-            add(out, ChatMsg(fromMe, text, who))
+            // 通用占位（`[视频]` / `[文件]` / `[位置]` …）没有可读内容：
+            // 标成 attachment，否则下游会把它当成「对方真的说了这三个字」。
+            add(out, ChatMsg(fromMe, text, who, attachment = isGenericAttachment(text)))
         }
         return out
     }

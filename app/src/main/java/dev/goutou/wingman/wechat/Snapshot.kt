@@ -61,6 +61,14 @@ data class RowSnapshot(
      * 把看到的东西带回 App 显示出来，就能一眼分辨是「这行压根没找到图」还是「找到了但认不出字」。
      */
     val imageProbe: String? = null,
+    /**
+     * 这一行是**语音**时，气泡下面那行转写文字（没有就是 null）。
+     *
+     * 微信的语音气泡里只有一个时长（`8''`），真正的内容在用户长按「转文字」之后
+     * 出现在气泡下方。那段文字**不在气泡背景里**，`bubbleOf` 给的是 null，
+     * 所以之前整条被丢掉 —— 模型只看到 `[语音]`，等于内容未知。
+     */
+    val voiceText: String? = null,
 )
 
 /**
@@ -134,6 +142,22 @@ const val ATTACHMENT_TEXT = "[图片/表情/语音]"
 private val GENERIC_ATTACHMENT = setOf(
     "[图片]", "[照片]", "[表情]", "[动画表情]", "[语音]", "[视频]", "[文件]", "[链接]", "[位置]", ATTACHMENT_TEXT,
 )
+
+/**
+ * 语音气泡里的时长文本：`8''` / `12"` / `8秒` / `8s`。
+ *
+ * 这是判断「这一行是语音」最稳的依据 —— 不认控件类名（微信一改版本就变），
+ * 只认微信自己渲染出来的那个时长。
+ */
+private val VOICE_DURATION = Regex("^\\d{1,3}\\s*(?:''|\"|\u2033|\u2032|s|S|秒)$")
+
+fun isVoiceDuration(text: String): Boolean {
+    val t = text.trim()
+    return t.length <= 6 && VOICE_DURATION.matches(t)
+}
+
+/** 转写文字的标记前缀。用它告诉模型「这是转写、可能有错」，不是对方打的原话。 */
+const val VOICE_PREFIX = "[语音] "
 
 /** 这一行是不是「通用附件占位」——凡是这种行，都可以拿图里的字把它换掉。 */
 fun isGenericAttachment(t: String): Boolean = t.trim() in GENERIC_ATTACHMENT
