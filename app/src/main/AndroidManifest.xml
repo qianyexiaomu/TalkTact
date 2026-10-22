@@ -33,8 +33,8 @@
       protectionLevel=normal + App 自己 uses 一下，就满足 sendBroadcast(intent, receiverPermission)
       对接收方的权限要求；微信进程不需要持有任何权限，也就没给它加权限。
     -->
-    <permission android:name="io.github.shibry88_netizen.talktact.permission.HEARTBEAT" android:protectionLevel="normal" />
-    <uses-permission android:name="io.github.shibry88_netizen.talktact.permission.HEARTBEAT" />
+    <permission android:name="com.qiany.talktact.permission.HEARTBEAT" android:protectionLevel="normal" />
+    <uses-permission android:name="com.qiany.talktact.permission.HEARTBEAT" />
 
     <!--
       现代 Xposed API：模块的身份不再靠下面那四个 meta-data 声明，而是靠 APK 里的
@@ -82,7 +82,7 @@
 
         <receiver android:name=".HeartbeatReceiver" android:exported="true">
             <intent-filter>
-                <action android:name="io.github.shibry88_netizen.talktact.HEARTBEAT" />
+                <action android:name="com.qiany.talktact.HEARTBEAT" />
             </intent-filter>
         </receiver>
 
@@ -107,9 +107,9 @@
         <receiver
             android:name=".proxy.ProxyWakeReceiver"
             android:exported="true"
-            android:permission="io.github.shibry88_netizen.talktact.permission.HEARTBEAT">
+            android:permission="com.qiany.talktact.permission.HEARTBEAT">
             <intent-filter>
-                <action android:name="io.github.shibry88_netizen.talktact.PROXY_WAKE" />
+                <action android:name="com.qiany.talktact.PROXY_WAKE" />
             </intent-filter>
         </receiver>
     </application>

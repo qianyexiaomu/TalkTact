@@ -32,7 +32,7 @@ object ProxyProtocol {
      * 为什么是广播而不是别的：App 进程可能已经被系统回收了，得有个**写在 manifest 里的静态接收器**
      * 才能让系统为了投递它而把进程重新拉起来（见 proxy/ProxyWakeReceiver）。
      */
-    const val ACTION_WAKE = "io.github.shibry88_netizen.talktact.PROXY_WAKE"
+    const val ACTION_WAKE = "com.qiany.talktact.PROXY_WAKE"
 
     /** 唤醒广播里带的凭据：就是 [PATH_CHAT] 那份 token，不引入第二套。 */
     const val EXTRA_TOKEN = "token"
