@@ -31,6 +31,9 @@ internal object XposedApi {
     @Volatile
     private var module: XposedModule? = null
 
+    /** 给需要动态挂 hook 的地方用（类是运行时探测出来的，没法在入口里写死）。 */
+    internal fun moduleOrNull(): XposedModule? = module
+
     /** 由入口在 onModuleLoaded 里调用；模块代码在此之前不应做任何初始化。 */
     fun bind(m: XposedModule) {
         module = m

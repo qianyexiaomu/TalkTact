@@ -284,7 +284,7 @@ fun MiuixPreviewScreen(
                 ) {
                     when (page) {
                         1 -> AppearancePage(c, cfg, save, onOld = onBack) { page = 0 }
-                        2 -> AutoAnalyzePage(c, cfg, save, onWhitelist = { page = 9 }) { page = 0 }
+                        2 -> AutoAnalyzePage(c, store, cfg, save, onWhitelist = { page = 9 }) { page = 0 }
                         3 -> ReplyStylePage(
                             c, cfg, toggleStyle, addCustomStyle, removeCustomStyle,
                             onOpenChatStyles = { page = 12 },
@@ -1383,6 +1383,7 @@ private fun AppearancePage(
 @Composable
 private fun AutoAnalyzePage(
     c: Colors,
+    store: ConfigStore,
     cfg: ConfigData,
     save: (ConfigData) -> Unit,
     onWhitelist: () -> Unit,
@@ -1407,6 +1408,19 @@ private fun AutoAnalyzePage(
         StepperRow(c, "最短间隔", cfg.minIntervalSec, 0, 600, 5, suffix = "s") {
             save(cfg.copy(minIntervalSec = it))
         }
+    }
+
+    // 语音转写：注入侧扫微信 dex 的结果，决定语音能不能自动转。
+    var tick by remember { mutableIntStateOf(0) }
+    val voice = remember(tick) { store.voiceInfo() }
+    SmallTitle(text = "语音转写")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+        BasicComponent(
+            title = "微信转写入口",
+            summary = voice.ifBlank { "还没收到探测结果 —— 重启微信后进一次聊天页，再点刷新" },
+            onClick = { tick++ },
+            rightActions = { Text("刷新", fontSize = 13.sp, color = c.primary) },
+        )
     }
 
     SmallTitle(text = "内容与温度")

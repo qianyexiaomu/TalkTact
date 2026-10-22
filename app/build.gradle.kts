@@ -107,6 +107,10 @@ dependencies {
      */
     implementation("top.yukonga.miuix.kmp:miuix:0.2.9")
 
+    // 运行时扫微信 dex，按字符串特征 + 方法签名找被混淆的类（语音转写用）。
+    // 带 native 库，所以 abiFilters 里的 arm64-v8a 不能去掉。
+    implementation("org.luckypray:dexkit:2.0.1")
+
 
     // 「每天中午 12:00 提炼说话风格」用它的周期任务：App 没开、手机重启过都照跑，
     // 也不必申请精确闹钟权限（AlarmManager 那条路 Android 12+ 要额外权限）

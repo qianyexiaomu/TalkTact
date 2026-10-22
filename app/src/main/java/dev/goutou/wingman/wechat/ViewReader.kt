@@ -549,6 +549,11 @@ internal class ViewReader(private val a: Activity) {
             null
         }
 
+        // 语音还没转写 → 请微信转一次，它转完会渲染在气泡下面，下一轮读屏就有。
+        if (transcript == null && isVoiceDuration(bubbleText)) {
+            runCatching { VoiceBridge.requestTranscribe(row) }
+        }
+
         return RowSnapshot(bubble, texts, avatars, image, scan?.probe, transcript)
     }
 

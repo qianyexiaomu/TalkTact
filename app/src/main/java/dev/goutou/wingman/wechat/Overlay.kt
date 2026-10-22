@@ -44,6 +44,8 @@ internal object PanelRegistry {
     private val panels = java.util.WeakHashMap<Activity, Panel>()
 
     fun onResume(activity: Activity) {
+        // 第一次进聊天页时探一次语音转写入口（扫 dex 要几秒，不放冷启动）。
+        runCatching { VoiceBridge.install(activity) }
         val existing = panels[activity]
         if (existing != null) existing.onResume() else panels[activity] = Panel(activity).also { it.onResume() }
     }
@@ -184,6 +186,8 @@ internal class Panel(private val a: Activity) {
      * 挂错键的后果就是「点了『仍然分析这一条』→ 下一轮又命中 → 弹回风险卡」，点几次都一样。
      */
     private var screenKey = ""
+    /** 上一次回传给 App 的语音探测状态（去重用，别每 0.9 秒发一次广播）。 */
+    private var lastVoiceStatus = ""
     /**
      * 本次聊天的消息账本：把每轮读到的消息合并起来，给模型更长的前文。
      *
@@ -464,6 +468,16 @@ internal class Panel(private val a: Activity) {
 
         // 配置文件变了就地重读。提到最前面：下面几个早退分支都依赖它，尤其是「手动抓取」。
         refreshPrefs()
+
+        // 探测结果回传（只在变化时发）。
+        val voiceNow = buildString {
+            append(VoiceBridge.status())
+            VoiceBridge.action().takeIf { it.isNotBlank() }?.let { append(" ｜ ").append(it) }
+        }
+        if (voiceNow != lastVoiceStatus && !voiceNow.startsWith("还没开始")) {
+            lastVoiceStatus = voiceNow
+            Heartbeat.send(a, 0, voice = voiceNow)
+        }
 
         // App 里点了「抓当前微信界面」→ 把当前页面结构 dump 回去。
         // 刻意排在**所有**判定之前（包括 hasWindowFocus）：

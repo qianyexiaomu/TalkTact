@@ -41,6 +41,8 @@ object Heartbeat {
         trace: String? = null,
         /** 实时探测的回执（App 用它判断「模块现在还在不在」，见 Keys.PROBE_REQ） */
         probe: String? = null,
+        /** 语音转写入口的探测结果（注入侧启动时扫一次微信 dex，设置页显示） */
+        voice: String? = null,
     ) {
         try {
             val intent = Intent(ACTION).setPackage(MODULE_PKG).putExtra("tokens", tokens)
@@ -54,6 +56,7 @@ object Heartbeat {
             if (ocr != null) intent.putExtra("ocr", ocr)
             if (trace != null) intent.putExtra("trace", trace)
             if (probe != null) intent.putExtra("probe", probe)
+            if (voice != null) intent.putExtra("voice", voice)
             context.sendBroadcast(intent, PERMISSION)
         } catch (t: Throwable) {
             // 广播失败不影响主流程
@@ -103,6 +106,10 @@ class HeartbeatReceiver : BroadcastReceiver() {
         intent.getStringExtra("probe")?.let {
             editor.putLong(Keys.PROBE_ACK, System.currentTimeMillis())
             editor.putString(Keys.PROBE_INFO, it)
+        }
+        // 语音转写入口的探测结果
+        intent.getStringExtra("voice")?.let {
+            editor.putString(Keys.VOICE_INFO, it)
         }
         // 会话名候选：给「白名单」页用。名字统一走 normalizeKey —— 微信标题常带未读数（张三(3)），
         // 而白名单里存的本来就是归一化过的 key，两边必须同一套，否则「拉回来却勾不上」。

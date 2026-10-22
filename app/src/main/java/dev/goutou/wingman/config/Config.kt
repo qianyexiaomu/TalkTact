@@ -62,6 +62,8 @@ object Keys {
     const val MAX_TOKENS = "max_tokens"
     const val MIN_INTERVAL = "min_interval"
     const val SENSITIVE = "allow_sensitive"
+    /** 语音转写的入口探测状态（注入侧回传，设置页显示）。 */
+    const val VOICE_INFO = "voice_info"
     const val SCOPE_OK = "scope_ok"
     const val HEARTBEAT = "heartbeat_at"
 
@@ -688,6 +690,9 @@ class ConfigStore(context: Context) {
     fun saveGraded(graded: Boolean) {
         sp.edit().putBoolean(Keys.GRADED, graded).apply()
     }
+
+    /** 语音转写入口的探测结果（注入侧回传）。没收到过就是空串。 */
+    fun voiceInfo(): String = sp.getString(Keys.VOICE_INFO, "").orEmpty()
 
     /**
      * 只改「候选条数 + 风格」这两项 + **按新规格重拼提示词快照**，立刻落盘。
