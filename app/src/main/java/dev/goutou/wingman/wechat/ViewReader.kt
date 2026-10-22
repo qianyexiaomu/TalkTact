@@ -383,10 +383,18 @@ internal class ViewReader(private val a: Activity) {
      * 变化指纹：只读最后一行。
      * 「有没有新消息」看最后一行就够，比每轮把整棵树走一遍便宜得多。
      */
+    /**
+     * 这一屏的指纹 = **最后一条消息的文字**。
+     *
+     * ⚠️ 刻意**不放 `childCount`**（上一版是 `StringBuilder(n.toString())`）：
+     * 键盘弹出/收起、字号变化、往上翻半屏都会改变可见行数，而「可见几行」和
+     * 「这条会话的最新一句是什么」没有关系。把它算进指纹的后果就是
+     * **用户只是滚了一下聊天记录，就被当成「这一屏变了」重新问一遍模型**。
+     */
     fun fingerprint(list: ViewGroup): String {
         val n = list.childCount
         if (n == 0) return "0"
-        val sb = StringBuilder(n.toString())
+        val sb = StringBuilder()
         walk(list.getChildAt(n - 1), includeInvisible = true) { v ->
             val t = if (v is TextView && v !is EditText) {
                 v.text?.toString()?.trim().orEmpty()

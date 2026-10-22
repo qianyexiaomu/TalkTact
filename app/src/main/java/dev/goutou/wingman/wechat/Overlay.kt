@@ -184,6 +184,13 @@ internal class Panel(private val a: Activity) {
      * 挂错键的后果就是「点了『仍然分析这一条』→ 下一轮又命中 → 弹回风险卡」，点几次都一样。
      */
     private var screenKey = ""
+    /**
+     * 本次聊天的消息账本：把每轮读到的消息合并起来，给模型更长的前文。
+     *
+     * 只当**分析输入**用；「这一屏变了没有」不看它（见 [screenIdentity]），
+     * 否则往上翻两行就会重新问一次模型。
+     */
+    private val chatHistory = ChatHistory()
     /** 敏感卡上一次渲染的那一批命中词：同一屏同一批就不再重建（重建会让它每轮闪一次，像卡死）。 */
     private var sensitiveHits: List<String> = emptyList()
     /** 这一屏为什么用不了（[showStuck] 写的）：卡片开着时直接摊给用户看。 */
@@ -597,6 +604,19 @@ internal class Panel(private val a: Activity) {
         }
         noListTicks = 0
 
+        // 往上翻看历史：**不重新识别**。
+        //
+        // 聊天列表旧在上、新在下，`canScrollVertically(1)`（还能往下滚）为 true
+        // 就说明当前没贴底 —— 屏幕上那条「最后一条」其实不是这条会话的最新消息。
+        // 这时候去分析等于把历史消息当成新消息问一遍；而且用户只是在往回看，
+        // 没收到任何新东西，更不该把已经出来的卡片收掉。
+        //
+        // 贴底之后会照常继续：指纹没变就跳过，变了才问。
+        if (list.canScrollVertically(1)) {
+            Trace.note("位置", "不在底部（还能往下滚）→ 正在往回翻历史，这一轮不识别")
+            return
+        }
+
         // A reused Activity can host different conversations with identical last messages.
         // Resolve the title before every content fast-path; a missing title never inherits the old name.
         val observedRawName = Roles.normalizeKey(reader.findChatTitle(decor, list).orEmpty())
@@ -798,14 +818,27 @@ internal class Panel(private val a: Activity) {
             return
         }
         // 到这儿每张图都已经有确定结果了（认到的文字 / 确实没字 / 失败冷却），解析只是个纯查询
-        val msgs = parser.parse(
+        val parsed = parser.parse(
             rows,
             imageText = { img -> ocr.textOf(img) },
             // 图本体只在真的要直传时才被取走（ChatParser 里按 shouldSendImage 判过）——
             // 取一次就有一次画图 + 编码的成本，配置说只认字时一个字节都不该多拿
             imageBytes = { img -> img.jpeg() },
             imageMode = cfg.imageMode,
-        ).takeLast(cfg.ctx)
+        )
+        // `msgs` = 这一屏（按配置截断），`msgs` 之外的完整解析结果只喂给账本 ——
+        // 账本要尽量攒长，而「参考前文几条」是用户自己设的。
+        val msgs = parsed.takeLast(cfg.ctx)
+        // 累积成会话历史：屏幕上一次只有十来条，往上翻也就多几条；
+        // 合并之后模型能看到「这一屏 + 之前翻到过的」，前文不再只有一屏那么短。
+        val history = chatHistory.merge(observedName, parsed)
+        // 账本的最后一条必须就是这一屏的最后一条，否则说明账本还停在更早的位置
+        //（刚换会话、或者这一屏和账本没有重叠）—— 那种情况宁可只用当前这一屏。
+        val forAnalysis = if (history.lastOrNull() == msgs.lastOrNull()) {
+            history.takeLast(cfg.ctx)
+        } else {
+            msgs
+        }
         // 「这一屏」的稳定键：只跟**看得见的内容**有关（纯函数，单测见 ConversationStateTest）。
         screenKey = screenIdentity(observedName, reader.fingerprint(list), msgs)
         // 只记**条数和方向**，不记正文：轨迹会顺着心跳回传、常驻 App 本地，
@@ -921,7 +954,7 @@ internal class Panel(private val a: Activity) {
             setChip("$left s 后可再识别")
             return
         }
-        ask(cfg, msgs, requestKey, roleContext)
+        ask(cfg, forAnalysis, requestKey, roleContext)
     }
 
     /**
