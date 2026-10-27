@@ -1903,8 +1903,8 @@ private fun DiagnosticPage(
     SmallTitle(text = "操作")
     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
         BasicComponent(
-            title = "抓取微信界面",
-            summary = "让微信进程把当前界面结构回传一次（几秒后刷新看「界面诊断」）",
+            title = "抓取当前界面",
+            summary = "让宿主进程（微信 / QQ）把当前界面结构回传一次（几秒后刷新看「界面诊断」）",
             onClick = {
                 store.requestDiag()
                 tick++

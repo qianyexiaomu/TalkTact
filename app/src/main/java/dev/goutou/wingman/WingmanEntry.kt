@@ -1,6 +1,7 @@
 package dev.goutou.wingman
 
 import android.app.Activity
+import dev.goutou.wingman.config.Host
 import dev.goutou.wingman.config.Keys
 import dev.goutou.wingman.config.MODULE_PKG
 import dev.goutou.wingman.config.NAMESPACE
@@ -25,6 +26,8 @@ import io.github.libxposed.api.XposedModuleInterface
  * 认聊天页的策略**没有变**：不靠类名猜 LauncherUI/ChattingUI（微信一改版本就失效），
  * 而是挂在每个 Activity 的 onResume/onPause 上，由面板自己用
  * 「有没有输入框 + 有没有消息列表」的结构特征判断。
+ * 也正因为只钩**框架类** Activity 的生命周期，同一套入口能同时用在多个宿主上 ——
+ * 宿主的差异全收在 [Host] 和面板的判据里，不在这里。
  *
  * 类名被 `META-INF/xposed/java_init.list` 按字符串引用，改名要两边一起改。
  */
@@ -32,7 +35,7 @@ class WingmanEntry : XposedModule() {
 
     /**
      * onPackageReady 的 param 里没有进程名，只有包名，所以进程名得从 onModuleLoaded 存下来。
-     * 微信有 :push 之类的子进程，模块只该在主进程里干活。
+     * 微信有 :push 之类、QQ 有 :MSF / :qzone 之类的子进程，模块只该在主进程里干活。
      */
     private var processName = ""
 
@@ -43,12 +46,20 @@ class WingmanEntry : XposedModule() {
     }
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
-        when (param.packageName) {
-            // 自己的 App 进程：点掉「模块已激活」探针
-            MODULE_PKG -> hookSelf(param.classLoader)
-
-            "com.tencent.mm" -> if (processName == "com.tencent.mm") hookWeChat(param.classLoader)
+        // 自己的 App 进程：点掉「模块已激活」探针
+        if (param.packageName == MODULE_PKG) {
+            hookSelf(param.classLoader)
+            return
         }
+
+        val host = Host.of(param.packageName) ?: return
+        if (processName != host.mainProcess) {
+            // 子进程没有界面：挂 Activity 钩子没用，日志还会重复好几遍，直接跳过
+            XposedApi.log("跳过 ${host.label} 的子进程 $processName")
+            return
+        }
+        Host.current = host
+        hookHost(host, param.classLoader)
     }
 
     /**
@@ -70,14 +81,16 @@ class WingmanEntry : XposedModule() {
         }
     }
 
-    private fun hookWeChat(classLoader: ClassLoader) {
-        XposedApi.log("hooked com.tencent.mm")
-        preHookLearned(classLoader)
+    private fun hookHost(host: Host, classLoader: ClassLoader) {
+        XposedApi.log("已挂入 ${host.label}（${host.pkg}）")
+        // 「自己画字」的控件类名是**从微信身上学来的**（Keys.LEARNED），
+        // 在别的宿主里那些类根本不存在，白白 load 一遍还刷日志
+        if (host == Host.WECHAT) preHookLearned(classLoader)
 
         try {
-            // onResume：先让微信跑完，再拉起面板（等价于 legacy 的 afterHookedMethod）
+            // onResume：先让宿主跑完，再拉起面板（等价于 legacy 的 afterHookedMethod）
             val onResume = Activity::class.java.getDeclaredMethod("onResume")
-            hook(onResume).setId(HOOK_RESUME).intercept { chain ->
+            hook(onResume).setId(resumeId(host)).intercept { chain ->
                 val result = chain.proceed()
                 val activity = chain.thisObject as? Activity
                 if (activity != null) {
@@ -90,9 +103,9 @@ class WingmanEntry : XposedModule() {
                 result
             }
 
-            // onPause：先收面板，再让微信继续（等价于 legacy 的 beforeHookedMethod）
+            // onPause：先收面板，再让宿主继续（等价于 legacy 的 beforeHookedMethod）
             val onPause = Activity::class.java.getDeclaredMethod("onPause")
-            hook(onPause).setId(HOOK_PAUSE).intercept { chain ->
+            hook(onPause).setId(pauseId(host)).intercept { chain ->
                 val activity = chain.thisObject as? Activity
                 if (activity != null) {
                     try {
@@ -104,7 +117,7 @@ class WingmanEntry : XposedModule() {
                 chain.proceed()
             }
         } catch (t: Throwable) {
-            XposedApi.log("hook WeChat failed: $t")
+            XposedApi.log("hook ${host.label} failed: $t")
         }
     }
 
@@ -128,7 +141,10 @@ class WingmanEntry : XposedModule() {
 
     private companion object {
         const val HOOK_SELF = "wingman.module.status"
-        const val HOOK_RESUME = "wingman.activity.onResume"
-        const val HOOK_PAUSE = "wingman.activity.onPause"
+
+        // 钩子 id 带宿主：一个进程只可能是一个宿主，但 id 写清了，
+        // 日志和框架的钩子列表里就不会分不清这一对钩子属于哪个 App
+        fun resumeId(host: Host) = "wingman.activity.onResume@${host.pkg}"
+        fun pauseId(host: Host) = "wingman.activity.onPause@${host.pkg}"
     }
 }

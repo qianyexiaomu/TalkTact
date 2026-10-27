@@ -38,6 +38,7 @@ import dev.goutou.wingman.llm.REWRITE_PRESETS
 import dev.goutou.wingman.llm.Reply
 import dev.goutou.wingman.llm.Suggestion
 import dev.goutou.wingman.config.SELF_ROLE_KEY
+import dev.goutou.wingman.config.Host
 
 /** 每个微信 Activity 一个面板；面板自己判断「现在是不是聊天页」。 */
 internal object PanelRegistry {
@@ -45,7 +46,8 @@ internal object PanelRegistry {
 
     fun onResume(activity: Activity) {
         // 第一次进聊天页时探一次语音转写入口（扫 dex 要几秒，不放冷启动）。
-        runCatching { VoiceBridge.install(activity) }
+        // 语音桥是 DexKit 在**微信 dex** 里按字符串字面量找转写组件的，别的宿主上纯属白扫几秒 CPU。
+        if (Host.current == Host.WECHAT) runCatching { VoiceBridge.install(activity) }
         val existing = panels[activity]
         if (existing != null) existing.onResume() else panels[activity] = Panel(activity).also { it.onResume() }
     }
@@ -250,6 +252,13 @@ internal class Panel(private val a: Activity) {
     private var lastDiagReq = 0L
     /** 已经回执过的那个探测请求（见 [maybeAnswerProbe]）。 */
     private var lastProbeReq = 0L
+    /**
+     * 探针模式下「已经藏过一次」。
+     *
+     * 没适配的宿主（现在是 QQ）每轮都只该藏一次视图：tick 每 2.6s 跑一轮，
+     * 不记这个标记就会每轮往轨迹里塞一条「隐藏」，把真正有用的记录冲掉。
+     */
+    private var probeIdle = false
     private var emptyNotified = false
     /** 「白名单开着但认不出这个会话的名字」只提示一次，免得每屏都弹。 */
     private var whitelistNameNotified = false
@@ -486,15 +495,36 @@ internal class Panel(private val a: Activity) {
         val req = prefs?.getLong(Keys.DIAG_REQ, 0L) ?: 0L
         if (req > lastDiagReq) {
             lastDiagReq = req
-            Trace.note("抓取", "App 点了「抓当前微信界面」→ 手动 dump 结构（连带这份轨迹一起回传）")
+            val h = Host.current
+            val tag = if (h == null) "未知" else "${h.label} (${h.pkg})"
+            Trace.note("抓取", "App 点了「抓当前界面」→ 手动 dump 结构（$tag，连带这份轨迹一起回传）")
             val in0 = reader.findChatInput(decor)
             val ls0 = in0?.let { reader.findList(decor, it) }
             dumpDiagnosis(
                 decor, ls0, in0,
-                "手动抓取（App 触发）｜hasWindowFocus=${decor.hasWindowFocus()}｜输入框=${if (in0 != null) "有" else "无"}",
+                "手动抓取（App 触发）｜宿主=$tag｜hasWindowFocus=${decor.hasWindowFocus()}" +
+                    "｜输入框=${if (in0 != null) "有" else "无"}",
                 manual = true,
                 extra = stateReport(ls0),
             )
+            return
+        }
+
+        // App 的实时探测：位置同样在所有早退之前 —— 「这一屏读不出来」时最需要知道模块还活着。
+        // 刻意排在「拉取会话列表」之前：下面那段探针模式会把整段跳过，而探测应答不该跟着一起被跳过
+        //（在还没适配的宿主里问一句「模块还活着吗」，比硬拉一份读不准的会话列表有用）。
+        maybeAnswerProbe()
+
+        // 宿主还没适配判据（现在只有 QQ）→ 探针模式：只保留上面「抓当前界面」和这一句应答。
+        // 认聊天页的那几条规矩全是照微信的形状调的（输入框浮在列表上层、绿气泡=我、标题在状态栏下 96dp 那一带），
+        // 套到别的 App 上只会读出错的上下文，甚至把候选填进不相干的输入框 ——
+        // 所以这里什么都不画，也**不读**列表。要让它参与进来，先把 Host.adapted 改成 true。
+        val host = Host.current
+        if (host != null && !host.adapted) {
+            if (!probeIdle) {
+                probeIdle = true
+                hideAll("宿主「${host.label}」还没适配判据（探针模式）：只保留抓取界面")
+            }
             return
         }
 
@@ -502,9 +532,6 @@ internal class Panel(private val a: Activity) {
         // 位置和上面「手动抓取」一个道理：**排在 hasWindowFocus 之前**。读一屏列表不需要窗口焦点，
         // 而后面的早退分支一个比一个苛刻 —— 挡在哪儿都会让请求石沉大海，用户那边只看到「没反应」。
         maybePullConversations(decor)
-
-        // App 的实时探测：位置同样在所有早退之前 —— 「这一屏读不出来」时最需要知道模块还活着。
-        maybeAnswerProbe()
 
         if (!decor.hasWindowFocus()) {
             // 没焦点通常什么都不做 —— 但「有些对话连气泡都不出现」就是从这类早退里溜走的。
@@ -1034,19 +1061,23 @@ internal class Panel(private val a: Activity) {
         }
     }
 
-    /** 看到新的探测请求就回执（带上「当时在哪一屏」+ 微信版本，App 那边直接显示）。 */
+    /** 看到新的探测请求就回执（带上「当时在哪一屏」+ 当前宿主的版本，App 那边直接显示）。 */
     private fun maybeAnswerProbe() {
         refreshPrefs()
         val req = prefs?.getLong(Keys.PROBE_REQ, 0L) ?: 0L
         if (req <= lastProbeReq) return
         lastProbeReq = req
-        val ver = runCatching {
-            a.packageManager.getPackageInfo("com.tencent.mm", 0).versionName
-        }.getOrNull().orEmpty()
+        // 版本号取**当前宿主**的：以前写死 com.tencent.mm，在 QQ 里回一句「微信 8.0.78」纯属误导
+        val host = Host.current
+        val ver = host?.let {
+            runCatching { a.packageManager.getPackageInfo(it.pkg, 0).versionName }.getOrNull()
+        }.orEmpty()
         Heartbeat.send(
             a, 0,
             // 带上请求号（= 那次请求的时间戳）：App 就能分辨「这一轮探测被回答了」还是「答的是更早那一轮」
-            probe = "#$req · 页面=" + a.javaClass.simpleName + (if (ver.isBlank()) "" else " · 微信 $ver"),
+            probe = "#$req · 页面=" + a.javaClass.simpleName +
+                (if (ver.isBlank() || host == null) "" else " · ${host.label} $ver") +
+                (if (host != null && !host.adapted) " · 探针模式（判据未适配）" else ""),
         )
     }
 
