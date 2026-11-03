@@ -6,8 +6,8 @@ package dev.goutou.wingman.llm
  * 我们本来就是「OpenAI 兼容 + 自定义 base_url + 自定义 model」，所以预设不是什么特殊通道，
  * 就是一张字段映射表 —— 选中之后照样能手改，也不改变任何请求逻辑。
  *
- * ⚠️ **刻意不预填模型名**（除了 DeepSeek，那两个名字是查过官方文档的）：
- * 模型名各家迭代很快，写死一个过期的比留空更坑 —— 留空时界面上有「从服务端拉取模型列表」。
+ * ⚠️ **模型名只在查过官方文档时才预填**：模型名各家迭代很快，写死一个过期的比留空更坑 ——
+ * 留空时界面上有「从服务端拉取模型列表」。
  */
 data class ProviderPreset(
     val id: String,
@@ -62,6 +62,34 @@ val PROVIDER_PRESETS: List<ProviderPreset> = listOf(
     ProviderPreset(id = "stepfun", label = "阶跃星辰", baseUrl = "https://api.stepfun.com/v1"),
     ProviderPreset(id = "minimax", label = "MiniMax", baseUrl = "https://api.minimax.chat/v1"),
     ProviderPreset(id = "openai", label = "OpenAI", baseUrl = "https://api.openai.com/v1"),
+    /*
+     * OpenCode 的网关（Console）。官方文档（2026-11 核对）里它是「一个基址 + 三条路径」：
+     *   按量 https://opencode.ai/inference        Go 套餐 https://opencode.ai/inference/go
+     *   再拼 /openai/v1/chat/completions、/openai/v1/responses、/anthropic/v1/messages。
+     * 所以这里的 baseUrl 是「基址 + 形态那一段」，我们那套 apiUrl 拼上去正好是完整端点。
+     *
+     * 三条路径都吃全部付费模型（Console 会替我们翻译），**所以统一走 Chat 兼容就行** ——
+     * 不用为了 GPT 系切 Responses、也不用为了 Claude 系切 Anthropic（后者的 x-api-key
+     * 鉴权我们这边也发不出去，走 Chat 兼容反而绕开了这个问题）。
+     */
+    ProviderPreset(
+        id = "opencode-go",
+        label = "OpenCode Go（包月套餐）",
+        baseUrl = "https://opencode.ai/inference/go/openai/v1",
+        // 官方「Go 套餐」模型表里最便宜的一档，名字取自 2026-11 的文档
+        model = "deepseek-v4.1-flash",
+        note = "包月套餐（Go $10/月、Plus $40/月），Key 在 opencode.ai/console 的「Personal API keys」里建。" +
+            "免费模型（名字带 -free 的）只有 OpenCode 客户端能用，这里调会返回 403，得选付费模型。" +
+            "「拉取模型列表」在这儿可能 404（官方列表在 /inference/go/v1/models），模型名手填即可：deepseek-v4.1-flash、glm-5.3-flash、kimi-k3",
+    ),
+    ProviderPreset(
+        id = "opencode-zen",
+        label = "OpenCode 按量（Zen）",
+        baseUrl = "https://opencode.ai/inference/openai/v1",
+        model = "deepseek-v4.1-flash",
+        note = "和上面同一套接口，只是走 Console 余额按量计费（地址少一段 /go）。" +
+            "免费模型同样只在 OpenCode 客户端里可用，第三方调用会 403",
+    ),
 )
 
 fun presetOf(id: String): ProviderPreset? = PROVIDER_PRESETS.firstOrNull { it.id == id }
