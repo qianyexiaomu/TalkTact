@@ -41,6 +41,8 @@ fun mergeGraded(
         replies = reply?.replies.orEmpty(),
         best = reply?.best,
         why = reply?.why.orEmpty(),
+        // 切口只可能来自「写回复」那一路（风险那一路的契约里没有它）
+        topics = reply?.topics.orEmpty(),
         partial = (risk?.partial == true) || (reply?.partial == true),
         warnings = warnings,
     )

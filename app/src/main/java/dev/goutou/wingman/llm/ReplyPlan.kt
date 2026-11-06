@@ -278,7 +278,7 @@ data class ReplyPlan(
             if (i > 0) append(',')
             append("{\"style\":\"").append(s.label).append("\",\"text\":\"...\"}")
         }
-        append("]}")
+        append("],\"topics\":[]}")
     }
 
     companion object {

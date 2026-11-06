@@ -24,6 +24,7 @@ import dev.goutou.wingman.llm.encodeCustomStyles
 import dev.goutou.wingman.llm.gradedReplyPrompt
 import dev.goutou.wingman.llm.gradedRiskPrompt
 import dev.goutou.wingman.llm.outputContract
+import dev.goutou.wingman.llm.replyContract
 import dev.goutou.wingman.llm.stripOutputContract
 import dev.goutou.wingman.llm.stripReplyInstruction
 import dev.goutou.wingman.llm.outputBudget
@@ -140,6 +141,16 @@ class ReplyPlanTest {
         assertTrue(s.contains("\"replies\""))
         assertTrue(s.contains("\"best\""))
         assertTrue(s.contains("\"why\""))
+    }
+
+    @Test
+    fun `契约里带着换话题的字段，且默认是空数组`() {
+        val s = outputContract(ReplyPlan.default())
+        assertTrue("示例里要有 topics：$s", s.contains("\"topics\":[]"))
+        // 用法说明必须在，否则模型不知道什么时候才该给
+        assertTrue(s.contains("换话题"))
+        // 分级模式那一路（只写回复）也要带，不然分级模式下永远出不来切口
+        assertTrue(replyContract(ReplyPlan.default()).contains("\"topics\":[]"))
     }
 
     @Test

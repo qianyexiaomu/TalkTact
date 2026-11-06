@@ -25,6 +25,7 @@ class GradedTest {
         replies = listOf(Reply("稳妥", "好呀"), Reply("幽默", "我请客？"), Reply("推进", "周六？")),
         best = 2,
         why = "给两个具体日期",
+        topics = listOf("问问他周末去哪"),
     )
 
     @Test
@@ -36,6 +37,8 @@ class GradedTest {
         assertEquals(3, s.replies.size)
         assertEquals(2, s.best)
         assertEquals("给两个具体日期", s.why)
+        // 切口只来自「写回复」那一路，合并时不能丢
+        assertEquals(listOf("问问他周末去哪"), s.topics)
         assertTrue(s.warnings.isEmpty())
         assertFalse(s.partial)
     }

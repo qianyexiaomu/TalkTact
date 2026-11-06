@@ -867,6 +867,29 @@ private fun TrialPage(c: Colors, store: ConfigStore, onBack: () -> Unit) {
                 }
             }
         }
+
+        // 换话题的切口：和候选回复分开放，标题写清楚用途 —— 它不是「接对方最后一句」
+        if (s.topics.isNotEmpty()) {
+            SmallTitle(text = "换个话题（对方在敷衍 / 聊死了的时候用，点一下复制）")
+            s.topics.forEach { t ->
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .clip(RoundedCornerShape(RadiusR2))
+                        .clickable { clipboard.setText(AnnotatedString(t)) },
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("↪", fontSize = 13.sp, color = c.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(t, fontSize = 14.sp, color = c.onSurface)
+                    }
+                }
+            }
+        }
     }
     Spacer(Modifier.height(24.dp))
 }

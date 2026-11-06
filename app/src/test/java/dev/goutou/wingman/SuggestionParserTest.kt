@@ -168,4 +168,41 @@ class SuggestionParserTest {
         assertEquals("低", s.risk)
         assertEquals("未识别", s.intent)
     }
+
+    @Test
+    fun `换话题的切口：字符串数组和对象数组都认`() {
+        val plain = SuggestionParser.parse(
+            """{"intent":"x","risk":"低","replies":[{"style":"稳妥","text":"嗯嗯"}],"topics":["问问他周末去哪","吐槽一下天气"]}""",
+        )
+        assertEquals(listOf("问问他周末去哪", "吐槽一下天气"), plain.topics)
+
+        // 有的模型爱给切口也套一层对象
+        val boxed = SuggestionParser.parse(
+            """{"intent":"x","risk":"低","replies":[{"style":"稳妥","text":"嗯嗯"}],"topics":[{"text":"问问他周末去哪"}]}""",
+        )
+        assertEquals(listOf("问问他周末去哪"), boxed.topics)
+    }
+
+    @Test
+    fun `没给切口就是空列表（正常对话不该硬塞）`() {
+        val s = SuggestionParser.parse(
+            """{"intent":"x","risk":"低","replies":[{"style":"稳妥","text":"好"}]}""",
+        )
+        assertTrue(s.topics.isEmpty())
+        // 空数组 / 全是空白也算没给
+        val blank = SuggestionParser.parse(
+            """{"intent":"x","risk":"低","replies":[{"style":"稳妥","text":"好"}],"topics":["  ",""]}""",
+        )
+        assertTrue(blank.topics.isEmpty())
+    }
+
+    @Test
+    fun `切口去重且最多三条`() {
+        val s = SuggestionParser.parse(
+            """{"intent":"x","risk":"低","replies":[{"style":"稳妥","text":"好"}],
+               "topics":["A","A","B","C","D","B"]}""",
+        )
+        // 多给的会挤掉候选区，所以只留前三条；重样的去重
+        assertEquals(listOf("A", "B", "C"), s.topics)
+    }
 }

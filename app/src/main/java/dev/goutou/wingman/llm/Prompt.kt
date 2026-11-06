@@ -15,7 +15,13 @@ const val JSON_CONTRACT_HEAD = """只输出下面这个 JSON，不要 markdown�
 const val JSON_CONTRACT_TAIL = """
 
 best = 你最推荐的那条在 replies 里的下标（从 0 开始）；why = 一句话说明为什么推荐它。
-这两个字段必须有，值可以是空字符串/0。"""
+这两个字段必须有，值可以是空字符串/0。
+
+topics = 「换话题的切口」。只在这几种情况给 2~3 条（每条是一句能直接发出去的话，不超过 20 字）：
+对方明显在敷衍（只回「嗯」「哦」「哈哈」「在忙」）、话题已经聊死、或者聊天记录很少要你起头。
+其余情况一律给空数组 []。
+topics 是「另起一个话头」，replies 是「接住对方最后一句」—— 两者不许互相复制；
+条数与 best 下标只算 replies，不算 topics。"""
 
 /**
  * 按当前配置拼出输出契约：条数与风格都在 [plan] 里。
@@ -321,7 +327,10 @@ fun replyContract(plan: ReplyPlan): String = buildString {
     append(REPLY_CONTRACT_HEAD)
     append("{\"replies\":[").append(plan.styles.joinToString(",") {
         "{\"style\":\"${it.label}\",\"text\":\"...\"}"
-    }).append("],\"best\":0,\"why\":\"为什么推荐它（一句话）\"}")
+    }).append("],\"best\":0,\"why\":\"为什么推荐它（一句话）\",\"topics\":[]}")
+    // 换话题的切口：默认空数组，只有冷场时才让模型给 —— 见 [JSON_CONTRACT_TAIL] 里同一段说明
+    append("\n\ntopics 只在对方明显在敷衍（只回「嗯」「哦」「哈哈」）、话题聊死、")
+    append("或记录很少要你起头时给 2~3 条（每条一句能直接发出去的话，不超过 20 字），其余情况给 []。")
 }
 
 /** 默认规格下那一路（老样子：三条稳妥/幽默/推进）。 */

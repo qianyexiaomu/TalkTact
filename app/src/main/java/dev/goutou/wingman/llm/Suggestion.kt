@@ -13,6 +13,14 @@ data class Suggestion(
     val best: Int? = null,
     /** 为什么推荐它（一句话） */
     val why: String = "",
+    /**
+     * 换话题的切口（冷场、对方在敷衍、或者刚开场没什么可接的时候才有）。
+     *
+     * 和 [replies] 的区别：候选回复必须是「接住对方最后一句」，而这些是**另起一个话头** ——
+     * 对方只回个「嗯」「哈哈」时，硬接只会越接越尬，换个切口才有话说。
+     * 空 = 这轮不需要换话题（绝大多数正常对话都是空）。
+     */
+    val topics: List<String> = emptyList(),
     /** true = 模型输出被截断过，这份是从残缺 JSON 里抢救出来的（提醒用户重试） */
     val partial: Boolean = false,
     /**
@@ -93,6 +101,14 @@ object SuggestionParser {
         val rawRisk = root["risk"].asStr()?.trim().orEmpty()
         val rawNote = root["note"].asStr()?.trim().orEmpty()
 
+        // 换话题的切口。两种写法都认：字符串数组，或者 [{"text":"…"}]（有的模型爱套一层对象）。
+        // 多给的丢掉、重样的去重 —— 界面上就三行，多了反而挤掉候选回复。
+        val topics = root["topics"].asArr().orEmpty()
+            .mapNotNull { v -> v.asStr()?.trim() ?: v.asObj()?.let { it["text"].asStr()?.trim() } }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(MAX_TOPICS)
+
         // 另一头也要守住：这一路不要求候选（分级模式的风险那一路），那它至少要带回
         // 意图 / 风险 / 提醒里的一项。否则等于什么也没说 —— 别让一个空 JSON 混成「成功」，
         // 界面上显示成一个空的「未知 / 未识别」，比直接报错更难查。
@@ -114,6 +130,7 @@ object SuggestionParser {
             replies = kept,
             best = parseBest(root["best"], kept),
             why = root["why"].asStr()?.trim().orEmpty(),
+            topics = topics,
             partial = strictRoot == null,
         )
     }
@@ -232,6 +249,9 @@ fun List<ChatMsg>.asTranscript(): String = joinToString("\n") { m ->
 
 /** 一条候选多长算「偏长」：提示词里要求 40~45 字，超过这个数就值得提醒一句（只提示，不拦）。 */
 const val REPLY_TOO_LONG_CHARS = 60
+
+/** 一屏最多给几个「换话题的切口」。多给会挤掉候选回复，而冷场时真用得上的也就一两个。 */
+const val MAX_TOPICS = 3
 
 /** 是否偏长（纯函数，配单测）。 */
 fun isReplyTooLong(text: String): Boolean = text.trim().length > REPLY_TOO_LONG_CHARS

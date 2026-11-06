@@ -1461,6 +1461,7 @@ internal class Panel(private val a: Activity) {
                     "结果",
                     when {
                         ok != null -> "模型回来了：风险=${ok.risk} · 候选 ${ok.replies.size} 条" +
+                            (if (ok.topics.isEmpty()) "" else " · 切口 ${ok.topics.size} 条") +
                             (if (ok.warnings.isEmpty()) "" else " · 告警：${ok.warnings.joinToString("；")}")
                         err is LlmException -> "失败：${err.message}"
                         else -> "失败：${err?.message ?: "未知错误"}"
@@ -1561,10 +1562,13 @@ internal class Panel(private val a: Activity) {
         // 用户看到的就是「卡片折叠、展开、折叠、展开」那种往复抖动（用户实测报过）。
         val sig = conversationDigest(
             s.intent, s.risk, s.note, s.why, s.best.toString(), s.partial.toString(),
-            s.replies.joinToString("\u0000") { it.style + it.text }, msgs.size.toString(),
+            s.replies.joinToString("\u0000") { it.style + it.text },
+            // 切口也要进指纹：只有「同一批候选 + 多出两条切口」时也得重建，否则那两行永远不出现
+            s.topics.joinToString("\u0000"),
+            msgs.size.toString(),
         )
         if (body == Body.Result && renderedSig == sig) {
-            setChip("军师 · 风险${s.risk} · ${s.replies.size}条", chipColor(s.risk))
+            setChip(chipFor(s))
             return
         }
         renderedSig = sig
@@ -1662,6 +1666,33 @@ internal class Panel(private val a: Activity) {
                 opts.visibility = if (opts.visibility == View.VISIBLE) View.GONE else View.VISIBLE
             }
         }
+        // 换话题的切口：和候选回复放在同一个滚动区里（它们都是「点一下填入」的东西），
+        // 但**另起一段并带说明** —— 不然用户会以为这也是接对方最后一句的候选。
+        if (s.topics.isNotEmpty()) {
+            listBox.addView(
+                label("换个话题（对方在敷衍 / 聊死了的时候用）", 10f, colorSub) {
+                    setPadding(0, dp(10), 0, 0)
+                },
+            )
+            s.topics.forEach { t ->
+                val row = label("↪ $t", 13f, colorMain) {
+                    background = roundRect(colorReply, 14)
+                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                }
+                row.setOnClickListener { fill(t) }
+                row.setOnLongClickListener {
+                    copyToClipboard(t)
+                    true
+                }
+                listBox.addView(
+                    row,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply { topMargin = dp(6) },
+                )
+            }
+        }
         bodyBox.addView(
             label(
                 buildString {
@@ -1676,7 +1707,18 @@ internal class Panel(private val a: Activity) {
         )
         // 默认不打扰：只有你已经把卡片打开着，才把新结果摊在眼前；
         // 折叠着的时候只更新按钮上的「风险 + 条数」，点一下才展开。
-        setChip("军师 · 风险${s.risk} · ${s.replies.size}条", chipColor(s.risk))
+        setChip(chipFor(s), chipColor(s.risk))
+    }
+
+    /**
+     * 折叠时按钮上的那行字。
+     *
+     * 有切口时多带一段「+2方向」：卡片收起来之后，用户否则完全不知道里面还有换话题的建议
+     * （而冷场恰恰是最需要它的场景）。
+     */
+    private fun chipFor(s: Suggestion): String = buildString {
+        append("军师 · 风险").append(s.risk).append(" · ").append(s.replies.size).append("条")
+        if (s.topics.isNotEmpty()) append(" +").append(s.topics.size).append("方向")
     }
 
     private fun renderSensitive(hits: List<String>, joined: String) {
